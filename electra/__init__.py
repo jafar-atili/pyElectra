@@ -293,7 +293,7 @@ class ElectraAPI(object):
         current_time = int(datetime.now().timestamp())
         refresh_in = self._sid_expiration - current_time
         if refresh_in > 0:
-            logger.error("Should refresh in %s minutes", round(refresh_in / 60))
+            logger.debug("Should refresh in %s minutes", round(refresh_in / 60))
 
         if current_time < self._sid_expiration:
             return False
@@ -307,13 +307,13 @@ class ElectraAPI(object):
 
             current_ts = int(datetime.now().timestamp())
             if not force and not self._sid_expired():
-                logger.error("Found valid sid (%s) in cache, using it", self._sid)
+                logger.debug("Found valid sid (%s) in cache, using it", self._sid)
                 return
 
             if self._last_sid_request_ts and current_ts < (
                 self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS
             ):
-                logger.error(
+                logger.debug(
                     'Session ID was requested less than 5 minutes ago! waiting in order to prevent "intruder lockdown"...'
                 )
 

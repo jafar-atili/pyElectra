@@ -7,7 +7,7 @@ setup(
     name = 'pyElectra',
     packages = ['electra'],
     install_requires=['asyncio', 'aiohttp'],
-    version = '0.0.4',
+    version = '0.0.5',
     description = 'A library to communicate with Electra Air Conditioners',
     author='Jafar Atili',
     url='https://github.com/jafar-atili/pyElectra/',
