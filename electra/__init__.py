@@ -8,6 +8,8 @@ from json import JSONDecodeError
 import json
 import random
 
+from threading import Lock
+
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
 
@@ -237,6 +239,7 @@ class ElectraAPI(object):
         self._last_sid_request_ts = 0
         self._session = websession
         self._phone_number = None
+        self.lock = Lock()
 
     async def _send_request(self, payload) -> dict:
         try:
@@ -290,7 +293,7 @@ class ElectraAPI(object):
         current_time = int(datetime.now().timestamp())
         refresh_in = self._sid_expiration - current_time
         if refresh_in > 0:
-            logger.debug("Should refresh in %s minutes", round(refresh_in / 60))
+            logger.error("Should refresh in %s minutes", round(refresh_in / 60))
 
         if current_time < self._sid_expiration:
             return False
@@ -300,47 +303,48 @@ class ElectraAPI(object):
 
     async def _get_sid(self, force=False) -> bool:
 
-        current_ts = int(datetime.now().timestamp())
-        if not force and not self._sid_expired():
-            logger.debug("Found valid sid (%s) in cache, using it", self._sid)
-            return
+        with self.lock:
 
-        if self._last_sid_request_ts and current_ts < (
-            self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS
-        ):
-            logger.debug(
-                'Session ID was requested less than 5 minutes ago! waiting in order to prevent "intruder lockdown"...'
-            )
-
-        payload = {
-            "pvdid": 1,
-            "id": 99,
-            "cmd": "VALIDATE_TOKEN",
-            "data": {
-                "imei": self._imei,
-                "token": self._token,
-                "os": "android",
-                "osver": "M4B30Z",
-            },
-        }
-
-        resp = await self._send_request(payload=payload)
-        if resp is None:
-            raise ElectraApiError("Failed to retrieve sid")
-        else:
-            if not resp[ATTR_DATA][ATTR_SID]:
-                raise ElectraApiError(
-                    "Failed to retrieve SID due to %s", resp[ATTR_DATA][ATTR_DESC]
-                )
-
-            else:
-                self._sid = resp[ATTR_DATA][ATTR_SID]
-                self._sid_expiration = current_ts + SID_EXPIRATION
-                self._last_sid_request_ts = current_ts
-                logger.debug("Successfully acquired sid: %s", self._sid)
+            current_ts = int(datetime.now().timestamp())
+            if not force and not self._sid_expired():
+                logger.error("Found valid sid (%s) in cache, using it", self._sid)
                 return
 
-    async def get_devices(self):
+            if self._last_sid_request_ts and current_ts < (
+                self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS
+            ):
+                logger.error(
+                    'Session ID was requested less than 5 minutes ago! waiting in order to prevent "intruder lockdown"...'
+                )
+
+            payload = {
+                "pvdid": 1,
+                "id": 99,
+                "cmd": "VALIDATE_TOKEN",
+                "data": {
+                    "imei": self._imei,
+                    "token": self._token,
+                    "os": "android",
+                    "osver": "M4B30Z",
+                },
+            }
+
+            resp = await self._send_request(payload=payload)
+            if resp is None:
+                raise ElectraApiError("Failed to retrieve sid")
+            else:
+                if not resp[ATTR_DATA][ATTR_SID]:
+                    raise ElectraApiError(
+                        "Failed to retrieve SID due to %s", resp[ATTR_DATA][ATTR_DESC]
+                    )
+
+                else:
+                    self._sid = resp[ATTR_DATA][ATTR_SID]
+                    self._sid_expiration = current_ts + SID_EXPIRATION
+                    self._last_sid_request_ts = current_ts
+                    logger.debug("Successfully acquired sid: %s", self._sid)
+
+    async def get_devices(self) -> list:
         if self._sid_expired():
             await self._get_sid()
 
