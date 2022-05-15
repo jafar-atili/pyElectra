@@ -1,4 +1,4 @@
-# pySwitchbee
+# pyElectra
 
 Library to control Electra Air Condtioiner IoT devices
 
