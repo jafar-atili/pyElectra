@@ -1,11 +1,14 @@
 # pyElectra
 
+![PyPI](https://img.shields.io/pypi/v/pyelectra?label=pypi%20package)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/pyelectra)
+
 Library to control Electra Air Condtioiner IoT devices
 
 Based on: https://github.com/nitaybz/homebridge-electra-smart
 
 Usage:
-
+```
 import asyncio
 import aiohttp
 from electra import *
@@ -52,4 +55,4 @@ async def main():
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
-
+```
