@@ -185,11 +185,11 @@ class ElectraAPI(object):
             )
         except aiohttp.ClientError as ex:
             raise ElectraApiError(
-                "Failed to communicate with Electra API due to client error: %s", str(ex)
+                f"Failed to communicate with Electra API due to ClientError ({str(ex)})"
             )
         except JSONDecodeError as ex:
             raise ElectraApiError(
-                "Recieved invalid response from Electra API: %s", str(ex)
+                f"Recieved invalid response from Electra API: {str(ex)}"
             )
 
         return json_resp
