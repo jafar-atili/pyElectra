@@ -285,7 +285,10 @@ class ElectraAPI(object):
             for ac in resp[ATTR_DATA][ATTR_DEVICES]:
                 if ac["deviceTypeName"] == "A/C":
                     ac_list.append(ElectraAirConditioner(ac))
-
+                    logger.debug("Found A/C device %s", ac["name"])
+                else:
+                    logger.debug("Found non AC device %s", ac)
+        
             return ac_list
 
         else:
