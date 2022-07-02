@@ -35,6 +35,7 @@ OPER_FAN_SPEED_HIGH = "HIGH"
 OPER_FAN_SPEED_AUTO = "AUTO"
 OPER_ON = "ON"
 OPER_OFF = "OFF"
+OPER_STANDBY = "STBY"
 
 MAX_TEMP = 30
 MIN_TEMP = 17
@@ -88,27 +89,46 @@ class ElectraAirConditioner(object):
                 self._oper_data["AC_MODE"] = mode
 
     def set_horizontal_swing(self, enable: bool):
-        self._oper_data["HSWING"] = OPER_ON if enable else OPER_OFF
+        if "HSWING" in self._oper_data:
+            self._oper_data["HSWING"] = OPER_ON if enable else OPER_OFF
 
     def set_vertical_swing(self, enable: bool):
-        self._oper_data["VSWING"] = OPER_ON if enable else OPER_OFF
+        if "VSWING" in self._oper_data:
+            self._oper_data["VSWING"] = OPER_ON if enable else OPER_OFF
 
     def is_vertical_swing(self):
-        return self._oper_data["VSWING"] == OPER_ON
+        if "VSWING" in self._oper_data:
+            return self._oper_data["VSWING"] == OPER_ON
+        return False
+
+    def can_vertical_swing(self):
+        return "VSWING" in self._oper_data
 
     def is_horizontal_swing(self):
-        return self._oper_data["HSWING"] == OPER_ON
+        if "HSWING" in self._oper_data:
+            return self._oper_data["HSWING"] == OPER_ON
+        return False
+
+    def can_horizontal_swing(self):
+        return "HSWING" in self._oper_data
 
     def is_on(self):
-        return self._oper_data["TURN_ON_OFF"] == OPER_ON
+        if "TURN_ON_OFF" in self._oper_data:
+            return self._oper_data["TURN_ON_OFF"] == OPER_ON
+        else:
+            return self._oper_data["AC_MODE"] != OPER_STANDBY
 
     def turn_on(self):
         if not self.is_on():
-            self._oper_data["TURN_ON_OFF"] = OPER_ON
+            if "TURN_ON_OFF" in self._oper_data:
+                self._oper_data["TURN_ON_OFF"] = OPER_ON
 
     def turn_off(self):
         if self.is_on():
-            self._oper_data["TURN_ON_OFF"] = OPER_OFF
+            if "TURN_ON_OFF" in self._oper_data:
+                self._oper_data["TURN_ON_OFF"] = OPER_OFF
+            else:
+                self._oper_data["AC_MODE"] = OPER_STANDBY
 
     def get_temperature(self):
         return int(self._oper_data["SPT"])
@@ -288,7 +308,7 @@ class ElectraAPI(object):
                     logger.debug("Found A/C device %s", ac["name"])
                 else:
                     logger.debug("Found non AC device %s", ac)
-        
+
             return ac_list
 
         else:
