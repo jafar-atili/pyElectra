@@ -10,8 +10,11 @@ Usage:
 
 ```python
 import asyncio
+
 import aiohttp
-from electra import *
+
+from electrasmart import *
+
 
 async def main():
     session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False), timeout=aiohttp.ClientTimeout(total=10))

@@ -36,7 +36,6 @@ class ElectraAPI(object):
         logger.debug("Initialized Electra API object")
 
     async def _send_request(self, payload: dict) -> dict:
-        logger.debug(payload)
         try:
             resp = await self._session.post(
                 url=self._base_url,
