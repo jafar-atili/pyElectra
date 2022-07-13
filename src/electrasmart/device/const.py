@@ -21,6 +21,6 @@ class OperationMode:
 
 
 @dataclass
-class Features:
+class Feature:
     V_SWING = 0
     H_SWING = 1
