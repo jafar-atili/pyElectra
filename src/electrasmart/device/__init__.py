@@ -17,11 +17,15 @@ class ElectraAirConditioner(object):
         self.type: str = data["deviceTypeName"]
         self.status: str = data["status"]
         self.token: str = data["deviceToken"]
+        self._time_delta: int = 0
         self.features: List[Feature] = []
 
         self.current_mode: str = None
         self.collected_measure: int = None
         self._oper_data: Dict = None
+
+    def is_disconnected(self, thresh_sec: int = 60) -> bool:
+        return self._time_delta > thresh_sec
 
     def update_features(self) -> None:
         if "VSWING" in self._oper_data:
@@ -119,8 +123,9 @@ class ElectraAirConditioner(object):
         return self._oper_data["SHABAT"] == OperationMode.ON
 
     def update_operation_states(self, data):
-        self._oper_data = json.loads(data["OPER"])["OPER"]
-        measurments = json.loads(data["DIAG_L2"])["DIAG_L2"]
+        self._oper_data = json.loads(data["commandJson"]["OPER"])["OPER"]
+        self._time_delta = data["timeDelta"]
+        measurments = json.loads(data["commandJson"]["DIAG_L2"])["DIAG_L2"]
         if "I_RAT" in measurments:
             self.collected_measure = int(measurments["I_RAT"])
         if "I_CALC_AT" in measurments:

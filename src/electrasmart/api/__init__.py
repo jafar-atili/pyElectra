@@ -43,13 +43,13 @@ class ElectraAPI(object):
                 headers={"user-agent": "Electra Client"},
             )
             json_resp = await resp.json(content_type=None)
-        except TimeoutError:
+        except TimeoutError as ex:
             raise ElectraApiError(
-                "Failed to communicate with Electra API due to time out"
+                f"Failed to communicate with Electra API due to time out: ({str(ex)})"
             )
         except ClientError as ex:
             raise ElectraApiError(
-                f"Failed to communicate with Electra API due to ClientError ({str(ex)})"
+                f"Failed to communicate with Electra API due to ClientError: ({str(ex)})"
             )
         except JSONDecodeError as ex:
             raise ElectraApiError(
@@ -153,13 +153,11 @@ class ElectraAPI(object):
             for ac in resp[Attributes.DATA][Attributes.DEVICES]:
                 if ac["deviceTypeName"] == "A/C":
                     electra_ac: ElectraAirConditioner = ElectraAirConditioner(ac)
-                    logger.debug("Adding AC %s", electra_ac.name)
+                    logger.debug("Discovered A/C device %s", electra_ac.name)
                     ac_list.append(electra_ac)
                     fetch_state_tasks.append(
                         create_task(self.get_last_telemtry(electra_ac))
                     )
-
-                    logger.debug("Discovered A/C device %s", ac["name"])
                 else:
                     logger.debug("Discovered non AC device %s", ac)
 
@@ -192,7 +190,7 @@ class ElectraAPI(object):
         if resp[Attributes.STATUS] != STATUS_SUCCESS:
             raise ElectraApiError(f"Failed to get AC operation state: {resp}")
         else:
-            ac.update_operation_states(resp[Attributes.DATA]["commandJson"])
+            ac.update_operation_states(resp[Attributes.DATA])
 
     async def set_state(self, device: ElectraAirConditioner):
         json_command = device.get_operation_state()
