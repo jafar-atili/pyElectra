@@ -1,8 +1,10 @@
-from asyncio import create_task, TimeoutError
+from __future__ import annotations
+
+from asyncio import TimeoutError, create_task
 from datetime import datetime
 from json import JSONDecodeError
 from logging import getLogger
-from typing import List
+from typing import Any, List
 
 from aiohttp import ClientError, ClientSession
 
@@ -23,7 +25,12 @@ class ElectraApiError(Exception):
 
 
 class ElectraAPI(object):
-    def __init__(self, websession: ClientSession, imei: str = None, token: str = None):
+    def __init__(
+        self,
+        websession: ClientSession,
+        imei: str | None = None,
+        token: str | None = None,
+    ) -> None:
         self._base_url = "https://app.ecpiot.co.il/mobile/mobilecommand"
         self._sid = None
         self._imei = imei
@@ -35,14 +42,14 @@ class ElectraAPI(object):
 
         logger.debug("Initialized Electra API object")
 
-    async def _send_request(self, payload: dict) -> dict:
+    async def _send_request(self, payload: dict) -> dict[str, Any]:
         try:
             resp = await self._session.post(
                 url=self._base_url,
                 json=payload,
                 headers={"user-agent": "Electra Client"},
             )
-            json_resp = await resp.json(content_type=None)
+            json_resp: dict = await resp.json(content_type=None)
         except TimeoutError as ex:
             raise ElectraApiError(
                 f"Failed to communicate with Electra API due to time out: ({str(ex)})"
@@ -58,7 +65,7 @@ class ElectraAPI(object):
 
         return json_resp
 
-    async def generate_new_token(self, phone_number: str, imei: str):
+    async def generate_new_token(self, phone_number: str, imei: str) -> dict:
         payload = {
             "pvdid": 1,
             "id": 99,
@@ -68,7 +75,9 @@ class ElectraAPI(object):
 
         return await self._send_request(payload=payload)
 
-    async def validate_one_time_password(self, otp: str, imei: str, phone_number: str):
+    async def validate_one_time_password(
+        self, otp: str, imei: str, phone_number: str
+    ) -> dict:
         payload = {
             "pvdid": 1,
             "id": 99,
@@ -140,7 +149,7 @@ class ElectraAPI(object):
                 self._last_sid_request_ts = current_ts
                 logger.debug("Successfully acquired sid: %s", self._sid)
 
-    async def get_devices(self=False) -> list:
+    async def get_devices(self) -> list:
         fetch_state_tasks = []
         logger.debug("About to Get Electra AC devices")
         await self._get_sid()
@@ -172,7 +181,7 @@ class ElectraAPI(object):
         else:
             raise ElectraApiError("Failed to fetch devices %s", resp)
 
-    async def get_last_telemtry(self, ac: ElectraAirConditioner):
+    async def get_last_telemtry(self, ac: ElectraAirConditioner) -> None:
 
         logger.debug("Getting AC %s state", ac.name)
 
@@ -192,7 +201,7 @@ class ElectraAPI(object):
         else:
             ac.update_operation_states(resp[Attributes.DATA])
 
-    async def set_state(self, device: ElectraAirConditioner):
+    async def set_state(self, device: ElectraAirConditioner) -> dict:
         json_command = device.get_operation_state()
         await self._get_sid()
 
