@@ -39,8 +39,13 @@ class ElectraAPI(object):
         self._last_sid_request_ts = 0
         self._session = websession
         self._phone_number = None
+        self._devices: list[ElectraAirConditioner] = []
 
         logger.debug("Initialized Electra API object")
+
+    @property
+    def devices(self) -> list[ElectraAirConditioner]:
+        return self._devices
 
     async def _send_request(self, payload: dict) -> dict[str, Any]:
         try:
@@ -149,7 +154,7 @@ class ElectraAPI(object):
                 self._last_sid_request_ts = current_ts
                 logger.debug("Successfully acquired sid: %s", self._sid)
 
-    async def get_devices(self) -> list:
+    async def fetch_devices(self) -> None:
         fetch_state_tasks = []
         logger.debug("About to Get Electra AC devices")
         await self._get_sid()
@@ -176,7 +181,7 @@ class ElectraAPI(object):
             for ac in ac_list:
                 ac.update_features()
 
-            return ac_list
+            self._devices = ac_list
 
         else:
             raise ElectraApiError("Failed to fetch devices %s", resp)
