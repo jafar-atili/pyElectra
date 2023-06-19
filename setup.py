@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setup(
     name = 'pyElectra',
     packages = ['electra'],
-    install_requires=['asyncio', 'aiohttp'],
+    install_requires=['aiohttp'],
     version = '0.1.1',
     description = 'A library to communicate with Electra Air Conditioners',
     author='Jafar Atili',
