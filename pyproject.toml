@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyElectra"
-version = "1.2.0"
+version = "1.2.1"
 description = "Electra Smart Python Integration."
 readme = "README.md"
 authors = [{ name = "Jafar Atili", email = "at.jafar@outlook.com" }]
