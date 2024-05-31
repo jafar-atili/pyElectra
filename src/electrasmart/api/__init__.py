@@ -30,6 +30,7 @@ class ElectraAPI(object):
         websession: ClientSession,
         imei: str | None = None,
         token: str | None = None,
+        sid_expiration_const: int | None = None,
     ) -> None:
         self._base_url = "https://app.ecpiot.co.il/mobile/mobilecommand"
         self._sid = None
@@ -40,6 +41,10 @@ class ElectraAPI(object):
         self._session = websession
         self._phone_number = None
         self._devices: list[ElectraAirConditioner] = []
+        if sid_expiration_const is None:
+            self.sid_expiration_const = SID_EXPIRATION
+        else:
+            self.sid_expiration_const = sid_expiration_const
 
         logger.debug("Initialized Electra API object")
 
@@ -150,7 +155,7 @@ class ElectraAPI(object):
 
             else:
                 self._sid = resp[Attributes.DATA][Attributes.SID]
-                self._sid_expiration = current_ts + SID_EXPIRATION
+                self._sid_expiration = current_ts + self.sid_expiration_const
                 self._last_sid_request_ts = current_ts
                 logger.debug("Successfully acquired sid: %s", self._sid)
 
