@@ -157,7 +157,7 @@ class ElectraAPI(object):
                 self._sid = resp[Attributes.DATA][Attributes.SID]
                 try:
                     self._sid_expiration = current_ts + self.sid_expiration_const
-                except TypeError:
+                except (TypeError, AttributeError):
                     self._sid_expiration = current_ts + SID_EXPIRATION
 
                 self._last_sid_request_ts = current_ts
