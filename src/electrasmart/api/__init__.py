@@ -110,6 +110,10 @@ class ElectraAPI(object):
             self._sid = None
             return True
 
+    
+    async def reset_sid(self, force: bool = True) -> None:
+        return self._get_sid(self, force=force)
+
     async def _get_sid(self, force: bool = False) -> None:
 
         current_ts = int(datetime.now().timestamp())
