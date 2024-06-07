@@ -4,6 +4,7 @@ import json
 
 from .const import Feature, OperationMode
 
+from typing import Dict
 
 class ElectraAirConditioner(object):
     def __init__(self, data: dict[str, str]) -> None:
@@ -122,7 +123,7 @@ class ElectraAirConditioner(object):
     def get_shabat_mode(self) -> bool:
         return self._oper_data["SHABAT"] == OperationMode.ON
 
-    def update_operation_states(self, data: dict) -> None:
+    def update_operation_states(self, data: Dict[str, Any]) -> None:
         self._oper_data = json.loads(data["commandJson"]["OPER"])["OPER"]
         self._time_delta = data["timeDelta"]
         measurments = json.loads(data["commandJson"]["DIAG_L2"])["DIAG_L2"]
