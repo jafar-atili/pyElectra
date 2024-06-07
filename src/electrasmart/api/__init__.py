@@ -47,14 +47,14 @@ class ElectraAPI(object):
     def devices(self) -> list[ElectraAirConditioner]:
         return self._devices
 
-    async def _send_request(self, payload: dict) -> Dict[str, Any]:
+    async def _send_request(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         try:
             resp = await self._session.post(
                 url=self._base_url,
                 json=payload,
                 headers={"user-agent": "Electra Client"},
             )
-            json_resp: dict:Dict[str, Any] = await resp.json(content_type=None)
+            json_resp: Dict[str, Any] = await resp.json(content_type=None)
         except TimeoutError as ex:
             raise ElectraApiError(
                 f"Failed to communicate with Electra API due to time out: ({str(ex)})"
