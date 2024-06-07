@@ -4,7 +4,7 @@ import json
 
 from .const import Feature, OperationMode
 
-from typing import Dict
+from typing import Any, Dict
 
 class ElectraAirConditioner(object):
     def __init__(self, data: dict[str, str]) -> None:
