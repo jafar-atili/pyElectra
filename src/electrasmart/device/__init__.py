@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+
 from .const import Feature, OperationMode
 
 
@@ -52,15 +53,11 @@ class ElectraAirConditioner(object):
 
     def set_horizontal_swing(self, enable: bool) -> None:
         if "HSWING" in self._oper_data:
-            self._oper_data["HSWING"] = (
-                OperationMode.ON if enable else OperationMode.OFF
-            )
+            self._oper_data["HSWING"] = OperationMode.ON if enable else OperationMode.OFF
 
     def set_vertical_swing(self, enable: bool) -> None:
         if "VSWING" in self._oper_data:
-            self._oper_data["VSWING"] = (
-                OperationMode.ON if enable else OperationMode.OFF
-            )
+            self._oper_data["VSWING"] = OperationMode.ON if enable else OperationMode.OFF
 
     def is_vertical_swing(self) -> bool:
         if "VSWING" in self._oper_data:

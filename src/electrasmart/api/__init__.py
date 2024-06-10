@@ -10,12 +10,8 @@ from aiohttp import ClientError, ClientSession
 
 from electrasmart.device import ElectraAirConditioner
 
-from .const import (
-    DELAY_BETWEEM_SID_REQUESTS,
-    SID_EXPIRATION,
-    STATUS_SUCCESS,
-    Attributes,
-)
+from .const import (DELAY_BETWEEM_SID_REQUESTS, SID_EXPIRATION, STATUS_SUCCESS,
+                    Attributes)
 
 logger = getLogger(__name__)
 
@@ -56,17 +52,11 @@ class ElectraAPI(object):
             )
             json_resp: dict[str, Any] = await resp.json(content_type=None)
         except TimeoutError as ex:
-            raise ElectraApiError(
-                f"Failed to communicate with Electra API due to time out: ({str(ex)})"
-            )
+            raise ElectraApiError(f"Failed to communicate with Electra API due to time out: ({str(ex)})")
         except ClientError as ex:
-            raise ElectraApiError(
-                f"Failed to communicate with Electra API due to ClientError: ({str(ex)})"
-            )
+            raise ElectraApiError(f"Failed to communicate with Electra API due to ClientError: ({str(ex)})")
         except JSONDecodeError as ex:
-            raise ElectraApiError(
-                f"Recieved invalid response from Electra API: {str(ex)}"
-            )
+            raise ElectraApiError(f"Recieved invalid response from Electra API: {str(ex)}")
 
         return json_resp
 
@@ -80,9 +70,7 @@ class ElectraAPI(object):
 
         return await self._send_request(payload=payload)
 
-    async def validate_one_time_password(
-        self, otp: str, imei: str, phone_number: str
-    ) -> dict[str, Any]:
+    async def validate_one_time_password(self, otp: str, imei: str, phone_number: str) -> dict[str, Any]:
         payload = {
             "pvdid": 1,
             "id": 99,
@@ -111,15 +99,12 @@ class ElectraAPI(object):
             return True
 
     async def _get_sid(self, force: bool = False) -> None:
-
         current_ts = int(datetime.now().timestamp())
         if not force and not self._sid_expired():
             logger.debug("Found valid sid (%s) in cache, using it", self._sid)
             return
 
-        if self._last_sid_request_ts and current_ts < (
-            self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS
-        ):
+        if self._last_sid_request_ts and current_ts < (self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS):
             logger.debug(
                 'Session ID was requested less than 5 minutes ago! waiting in order to prevent "intruder lockdown"...'
             )
@@ -169,9 +154,7 @@ class ElectraAPI(object):
                     electra_ac: ElectraAirConditioner = ElectraAirConditioner(ac)
                     logger.debug("Discovered A/C device %s", electra_ac.name)
                     ac_list.append(electra_ac)
-                    fetch_state_tasks.append(
-                        create_task(self.get_last_telemtry(electra_ac))
-                    )
+                    fetch_state_tasks.append(create_task(self.get_last_telemtry(electra_ac)))
                 else:
                     logger.debug("Discovered non AC device %s", ac)
 
@@ -187,7 +170,6 @@ class ElectraAPI(object):
             raise ElectraApiError("Failed to fetch devices %s", resp)
 
     async def get_last_telemtry(self, ac: ElectraAirConditioner) -> None:
-
         logger.debug("Getting AC %s state", ac.name)
 
         await self._get_sid()
