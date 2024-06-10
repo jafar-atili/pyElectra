@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-
+from typing import Any
 from .const import Feature, OperationMode
 
 
@@ -122,7 +122,7 @@ class ElectraAirConditioner(object):
     def get_shabat_mode(self) -> bool:
         return self._oper_data["SHABAT"] == OperationMode.ON
 
-    def update_operation_states(self, data: dict) -> None:
+    def update_operation_states(self, data: dict[str, Any]) -> None:
         self._oper_data = json.loads(data["commandJson"]["OPER"])["OPER"]
         self._time_delta = data["timeDelta"]
         measurments = json.loads(data["commandJson"]["DIAG_L2"])["DIAG_L2"]
