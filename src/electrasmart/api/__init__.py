@@ -47,14 +47,14 @@ class ElectraAPI(object):
     def devices(self) -> list[ElectraAirConditioner]:
         return self._devices
 
-    async def _send_request(self, payload: dict) -> dict[str, Any]:
+    async def _send_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
             resp = await self._session.post(
                 url=self._base_url,
                 json=payload,
                 headers={"user-agent": "Electra Client"},
             )
-            json_resp: dict = await resp.json(content_type=None)
+            json_resp: dict[str, Any] = await resp.json(content_type=None)
         except TimeoutError as ex:
             raise ElectraApiError(
                 f"Failed to communicate with Electra API due to time out: ({str(ex)})"
@@ -70,7 +70,7 @@ class ElectraAPI(object):
 
         return json_resp
 
-    async def generate_new_token(self, phone_number: str, imei: str) -> dict:
+    async def generate_new_token(self, phone_number: str, imei: str) -> dict[str, Any]:
         payload = {
             "pvdid": 1,
             "id": 99,
@@ -82,7 +82,7 @@ class ElectraAPI(object):
 
     async def validate_one_time_password(
         self, otp: str, imei: str, phone_number: str
-    ) -> dict:
+    ) -> dict[str, Any]:
         payload = {
             "pvdid": 1,
             "id": 99,
@@ -206,7 +206,7 @@ class ElectraAPI(object):
         else:
             ac.update_operation_states(resp[Attributes.DATA])
 
-    async def set_state(self, device: ElectraAirConditioner) -> dict:
+    async def set_state(self, device: ElectraAirConditioner) -> dict[str, Any]:
         json_command = device.get_operation_state()
         await self._get_sid()
 
