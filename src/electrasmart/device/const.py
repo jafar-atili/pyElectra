@@ -18,6 +18,10 @@ class OperationMode:
     ON = "ON"
     OFF = "OFF"
     STANDBY = "STBY"
+    SWING_BOTH = ""
+    SWING_HORIZONTAL = ""
+    SWING_VERTICAL = ""
+    SWING_OFF = ""
 
 
 @dataclass
