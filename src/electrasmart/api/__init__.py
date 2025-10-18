@@ -26,6 +26,7 @@ class ElectraAPI(object):
         websession: ClientSession,
         imei: str | None = None,
         token: str | None = None,
+        phone_number: str | None = None,
     ) -> None:
         self._base_url = "https://app.ecpiot.co.il/mobile/mobilecommand"
         self._sid = None
@@ -34,7 +35,7 @@ class ElectraAPI(object):
         self._sid_expiration = 0
         self._last_sid_request_ts = 0
         self._session = websession
-        self._phone_number = None
+        self._phone_number = phone_number
         self._devices: list[ElectraAirConditioner] = []
 
         logger.debug("Initialized Electra API object")
@@ -45,12 +46,14 @@ class ElectraAPI(object):
 
     async def _send_request(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
+            logger.debug(f"Sending request: {payload}")
             resp = await self._session.post(
                 url=self._base_url,
                 json=payload,
                 headers={"user-agent": "Electra Client"},
             )
             json_resp: dict[str, Any] = await resp.json(content_type=None)
+            logger.debug(f"Response: {json_resp}")
         except TimeoutError as ex:
             raise ElectraApiError(f"Failed to communicate with Electra API due to time out: ({str(ex)})")
         except ClientError as ex:
@@ -60,31 +63,46 @@ class ElectraAPI(object):
 
         return json_resp
 
-    async def generate_new_token(self, phone_number: str, imei: str) -> dict[str, Any]:
+    async def generate_new_token(self, phone_number: str | None = None, imei: str | None = None) -> dict[str, Any]:
+        if phone_number:
+            self._phone_number = phone_number
+        if imei:
+            self._imei = imei
+
         payload = {
             "pvdid": 1,
             "id": 99,
             "cmd": "SEND_OTP",
-            "data": {"imei": imei, "phone": phone_number},
+            "data": {"imei": self._imei, "phone": self._phone_number},
         }
 
-        return await self._send_request(payload=payload)
+        resp = await self._send_request(payload=payload)
+        return resp
 
-    async def validate_one_time_password(self, otp: str, imei: str, phone_number: str) -> dict[str, Any]:
+    async def validate_one_time_password(self, otp: str, imei: str | None = None, phone_number: str | None = None) -> dict[str, Any]:
+        if phone_number:
+            self._phone_number = phone_number
+        if imei:
+            self._imei = imei
+
         payload = {
             "pvdid": 1,
             "id": 99,
             "cmd": "CHECK_OTP",
             "data": {
-                "imei": imei,
-                "phone": phone_number,
+                "imei": self._imei,
+                "phone": self._phone_number,
                 "code": otp,
                 "os": "android",
                 "osver": "M4B30Z",
             },
         }
 
-        return await self._send_request(payload=payload)
+        resp = await self._send_request(payload=payload)
+        self._token = resp[const.Attributes.DATA][const.Attributes.TOKEN]
+        self._sid = resp[const.Attributes.DATA][const.Attributes.SID]
+        self._sid_expiration = int(datetime.now().timestamp()) + SID_EXPIRATION
+        return resp
 
     def _sid_expired(self) -> bool:
         current_time = int(datetime.now().timestamp())

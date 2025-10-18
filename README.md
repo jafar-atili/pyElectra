@@ -9,44 +9,51 @@ Python library to control Electra Smart Air Condtioiner devices
 Usage:
 
 ```python
+import sys
 import asyncio
 
 import aiohttp
 
-from electrasmart import *
+from electrasmart import api as electra_api
+from electrasmart.api import ElectraAPI
+from electrasmart.api.utils import generate_imei
+
+import logging
 
 
 async def main():
     session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False), timeout=aiohttp.ClientTimeout(total=10))
-    api = ElectraAPI(session)
 
     # User phone number
-    phone_number = "0521234567"
+    phone_number = input("Enter your account phone number: ")
     # Generate token
-    imei = generate_imei()
+    imei = electra_api.utils.generate_imei()
+    api = electra_api.ElectraAPI(session, phone_number=phone_number, imei=imei)
     try:
-        resp = await api.generate_new_token(phone_number=phone_number, imei=imei)
+        resp = await api.generate_new_token()
     except ElectraApiError as e:
         # handle error
         pass
 
-    otp = input("Enter the OTP you recieved via SMS")
+    otp = input("Enter the OTP you recieved via SMS: ")
     # more error handling
-    if resp[electra.ATTR_STATUS] == electra.STATUS_SUCCESS:
-        if resp[electra.ATTR_DATA][electra.ATTR_RES] != electra.STATUS_SUCCESS:
-            # Wrong phone number or unregistered user
+    if resp[electra_api.const.Attributes.STATUS] == electra_api.const.STATUS_SUCCESS:
+        if resp[electra_api.const.Attributes.DATA][electra_api.const.Attributes.RES] != electra_api.const.STATUS_SUCCESS:
+            print("Wrong phone number or unregistered user")
             sys.exit(1)
-     
-        resp = await api.validate_one_time_password(otp=otp, imei=imei, phone_number=phone_number)
-        if resp[electra.ATTR_DATA][electra.ATTR_RES] == electra.STATUS_SUCCESS:
-            token = resp[electra.ATTR_DATA][electra.ATTR_TOKEN]
+
+        resp = await api.validate_one_time_password(otp=otp)
+        if resp[electra_api.const.Attributes.DATA][electra_api.const.Attributes.RES] == electra_api.const.STATUS_SUCCESS:
+            token = resp[electra_api.const.Attributes.DATA][electra_api.const.Attributes.TOKEN]
         else:
-            # wrong OTP
+            print("wrong OTP")
             sys.exit(1)
-    
-    ac_devices = api.get_devices()
-    for ac in ac_devices:
-        assert(ac, ElectraAirConditioner)
+
+    await api.fetch_devices()
+    for ac in api.devices:
+        #assert(isinstance(ac, ElectraAirConditioner))
+        print(f"AC NAME: {ac.name}")
+        print(f"AC STATUS: {ac.status}")
         if ac.name == "Saloon AC":
             ac.turn_on()
             ac.set_mode(OPER_MODE_COOL)
@@ -56,7 +63,14 @@ async def main():
             api.set_state(ac)  # This will send the conf to the AC
 
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    logging.getLogger('main').info("Started")
 
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        pass
 ```
