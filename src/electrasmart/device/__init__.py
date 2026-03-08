@@ -124,9 +124,9 @@ class ElectraAirConditioner(object):
         self._time_delta = data["timeDelta"]
         measurments = json.loads(data["commandJson"]["DIAG_L2"])["DIAG_L2"]
         if "I_RAT" in measurments:
-            self.collected_measure = int(measurments["I_RAT"])
+            self.collected_measure = int(measurments["I_RAT"]) >> 8
         if "I_CALC_AT" in measurments:
-            self.collected_measure = int(measurments["I_CALC_AT"])
+            self.collected_measure = int(measurments["I_CALC_AT"]) >> 8
 
         self.current_mode = measurments["O_ODU_MODE"]
 
