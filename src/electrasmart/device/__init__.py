@@ -8,11 +8,11 @@ from .const import Feature, OperationMode
 
 class ElectraAirConditioner(object):
     def __init__(self, data: dict[str, str]) -> None:
-        self.id: str = data.get("id", "")
+        self.id: str = data["id"]
+        self.mac: str = data["mac"]
         self.name: str = data.get("name", "")
         self.regdate: str = data.get("regdate", "")
         self.model = data.get("model", "")
-        self.mac: str = data.get("mac", "")
         self.serial_number: str = data.get("sn", "")
         self.manufactor: str = data.get("manufactor", "")
         self.type: str = data.get("deviceTypeName", "")
