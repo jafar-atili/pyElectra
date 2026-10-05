@@ -64,3 +64,19 @@ def test_already_normalized_temperature_is_left_alone() -> None:
 def test_missing_telemetry_leaves_no_temperature() -> None:
     ac = ElectraAirConditioner(_device_record())
     assert ac.get_sensor_temperature() is None
+
+
+def test_incomplete_telemetry_is_skipped() -> None:
+    """Devices that answer with an empty commandJson must not raise (#13)."""
+    ac = ElectraAirConditioner(_device_record())
+
+    for payload in (
+        {},
+        {"commandJson": None, "timeDelta": 5},
+        {"commandJson": {"OPER": None, "DIAG_L2": None}, "timeDelta": 5},
+        {"commandJson": {"OPER": "", "DIAG_L2": ""}, "timeDelta": 5},
+    ):
+        ac.update_operation_states(payload)
+
+    assert ac.get_sensor_temperature() is None
+    assert ac._oper_data == {}

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+from logging import getLogger
 from typing import Any
 
 from .const import Feature, OperationMode
+
+logger = getLogger(__name__)
 
 
 class ElectraAirConditioner:
@@ -131,9 +134,22 @@ class ElectraAirConditioner:
         return self._oper_data["SHABAT"] == OperationMode.ON
 
     def update_operation_states(self, data: dict[str, Any]) -> None:
-        self._oper_data = json.loads(data["commandJson"]["OPER"])["OPER"]
+        # Devices that are offline, or that were never fully registered by the
+        # Electra app, can answer with a success status but an empty
+        # ``commandJson`` (issue #13). Skip the state update for those instead
+        # of raising and taking the whole device fetch down with them.
+        command_json = (data or {}).get("commandJson") or {}
+        oper = command_json.get("OPER")
+        diag_l2 = command_json.get("DIAG_L2")
+        if not oper or not diag_l2:
+            logger.debug(
+                "Skipping state update for %s: incomplete telemetry payload", self.name
+            )
+            return
+
+        self._oper_data = json.loads(oper)["OPER"]
         self._time_delta = data["timeDelta"]
-        measurments = json.loads(data["commandJson"]["DIAG_L2"])["DIAG_L2"]
+        measurments = json.loads(diag_l2)["DIAG_L2"]
         # ``I_RAT``/``I_CALC_AT`` are reported as a ×256 left-shifted integer
         # (e.g. raw 5632 == 22 °C). Normalize back to Celsius when the raw value
         # is implausible for a room temperature; some units already return the
