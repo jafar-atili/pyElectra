@@ -8,7 +8,8 @@ version = "1.2.5"
 description = "Electra Smart Python Integration."
 readme = "README.md"
 authors = [{ name = "Jafar Atili", email = "at.jafar@outlook.com" }]
-keywords = [ "home", "automation", "Electra", "smart", "Electra Smart", "Air Condition"]
+maintainers = [{ name = "Noam Okman" }]
+keywords = ["home", "automation", "Electra", "smart", "Electra Smart", "Air Condition"]
 classifiers = [
   "Intended Audience :: Developers",
   "Operating System :: OS Independent",
@@ -20,7 +21,20 @@ classifiers = [
 dependencies = ["aiohttp"]
 requires-python = ">=3.11"
 
-
 [project.urls]
 homepage = "https://pypi.org/project/pyelectra/"
 repository = "https://github.com/jafar-atili/pyelectra/"
+changelog = "https://github.com/jafar-atili/pyelectra/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+electrasmart = ["py.typed"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

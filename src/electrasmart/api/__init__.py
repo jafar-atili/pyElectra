@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import builtins
 from asyncio import TaskGroup
-from datetime import datetime
+from datetime import UTC, datetime
 from json import JSONDecodeError
 from logging import getLogger
 from typing import Any
@@ -98,7 +98,7 @@ class ElectraAPI:
         return await self._send_request(payload=payload)
 
     def _sid_expired(self) -> bool:
-        current_time = int(datetime.now().timestamp())
+        current_time = int(datetime.now(tz=UTC).timestamp())
         refresh_in = self._sid_expiration - current_time
         if refresh_in > 0:
             logger.debug("Should refresh in %s minutes", round(refresh_in / 60))
@@ -110,7 +110,7 @@ class ElectraAPI:
             return True
 
     async def _get_sid(self, force: bool = False) -> None:
-        current_ts = int(datetime.now().timestamp())
+        current_ts = int(datetime.now(tz=UTC).timestamp())
         if not force and not self._sid_expired():
             logger.debug("Found valid sid in cache, using it")
             return
