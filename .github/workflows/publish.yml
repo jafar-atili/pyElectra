@@ -8,14 +8,17 @@ name: publish
 #   owner/repository: jafar-atili/pyElectra
 #   workflow name:    publish.yml
 #   environment:      (none, unless one is set here as well)
-# Only a project owner can add that entry.
+# Only a project owner can add that entry. Until it exists this workflow will
+# fail at the upload step, so leave it untriggered.
 #
-# To release: bump `version` in pyproject.toml, then push a matching tag
-# (`git tag v1.2.5 && git push origin v1.2.5`) or run this workflow manually.
+# To release: bump `version` in pyproject.toml, commit, then push a matching
+# tag (`git tag 1.2.6 && git push origin 1.2.6`) or run this workflow manually.
 
 on:
   push:
     tags:
+      # Release tags follow the repo convention: bare versions (1.2.5).
+      - "[0-9]*"
       - "v*"
   workflow_dispatch:
 
