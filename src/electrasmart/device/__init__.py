@@ -9,15 +9,15 @@ from .const import Feature, OperationMode
 class ElectraAirConditioner(object):
     def __init__(self, data: dict[str, str]) -> None:
         self.id: str = data["id"]
-        self.name: str = data["name"]
-        self.regdate: str = data["regdate"]
-        self.model = data["model"]
         self.mac: str = data["mac"]
-        self.serial_number: str = data["sn"]
-        self.manufactor: str = data["manufactor"]
-        self.type: str = data["deviceTypeName"]
-        self.status: str = data["status"]
-        self.token: str = data["deviceToken"]
+        self.name: str = data.get("name", "")
+        self.regdate: str = data.get("regdate", "")
+        self.model = data.get("model", "")
+        self.serial_number: str = data.get("sn", "")
+        self.manufactor: str = data.get("manufactor", "")
+        self.type: str = data.get("deviceTypeName", "")
+        self.status: str = data.get("status", "")
+        self.token: str = data.get("deviceToken", "")
         self._time_delta: int = 0
         self.features: list[int] = []
 
