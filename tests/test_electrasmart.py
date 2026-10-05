@@ -67,7 +67,7 @@ def test_missing_telemetry_leaves_no_temperature() -> None:
 
 
 def test_incomplete_telemetry_is_skipped() -> None:
-    """Devices that answer with an empty commandJson must not raise (#13)."""
+    """Devices that answer with an empty commandJson must not raise."""
     ac = ElectraAirConditioner(_device_record())
 
     for payload in (

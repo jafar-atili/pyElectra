@@ -134,10 +134,6 @@ class ElectraAirConditioner:
         return self._oper_data["SHABAT"] == OperationMode.ON
 
     def update_operation_states(self, data: dict[str, Any]) -> None:
-        # Devices that are offline, or that were never fully registered by the
-        # Electra app, can answer with a success status but an empty
-        # ``commandJson`` (issue #13). Skip the state update for those instead
-        # of raising and taking the whole device fetch down with them.
         command_json = (data or {}).get("commandJson") or {}
         oper = command_json.get("OPER")
         diag_l2 = command_json.get("DIAG_L2")
