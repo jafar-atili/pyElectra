@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyElectra"
-version = "1.2.4"
+version = "1.2.5"
 description = "Electra Smart Python Integration."
 readme = "README.md"
 authors = [{ name = "Jafar Atili", email = "at.jafar@outlook.com" }]
@@ -18,10 +18,9 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
 ]
 dependencies = ["aiohttp"]
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 
 
-  
 [project.urls]
 homepage = "https://pypi.org/project/pyelectra/"
 repository = "https://github.com/jafar-atili/pyelectra/"

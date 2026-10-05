@@ -6,7 +6,7 @@ from typing import Any
 from .const import Feature, OperationMode
 
 
-class ElectraAirConditioner(object):
+class ElectraAirConditioner:
     def __init__(self, data: dict[str, str]) -> None:
         self.id: str = data["id"]
         self.mac: str = data["mac"]
@@ -17,6 +17,8 @@ class ElectraAirConditioner(object):
         self.manufactor: str = data.get("manufactor", "")
         self.type: str = data.get("deviceTypeName", "")
         self.status: str = data.get("status", "")
+        # ``deviceToken`` is not always present in the device record (some units
+        # omit it), so tolerate a missing field instead of crashing on lookup.
         self.token: str = data.get("deviceToken", "")
         self._time_delta: int = 0
         self.features: list[int] = []
@@ -41,23 +43,30 @@ class ElectraAirConditioner(object):
         return self._oper_data["AC_MODE"]
 
     def set_mode(self, mode: str) -> None:
-        if mode in [
-            OperationMode.MODE_AUTO,
-            OperationMode.MODE_COOL,
-            OperationMode.MODE_DRY,
-            OperationMode.MODE_FAN,
-            OperationMode.MODE_HEAT,
-        ]:
-            if mode != self._oper_data["AC_MODE"]:
-                self._oper_data["AC_MODE"] = mode
+        if (
+            mode
+            in [
+                OperationMode.MODE_AUTO,
+                OperationMode.MODE_COOL,
+                OperationMode.MODE_DRY,
+                OperationMode.MODE_FAN,
+                OperationMode.MODE_HEAT,
+            ]
+            and mode != self._oper_data["AC_MODE"]
+        ):
+            self._oper_data["AC_MODE"] = mode
 
     def set_horizontal_swing(self, enable: bool) -> None:
         if "HSWING" in self._oper_data:
-            self._oper_data["HSWING"] = OperationMode.ON if enable else OperationMode.OFF
+            self._oper_data["HSWING"] = (
+                OperationMode.ON if enable else OperationMode.OFF
+            )
 
     def set_vertical_swing(self, enable: bool) -> None:
         if "VSWING" in self._oper_data:
-            self._oper_data["VSWING"] = OperationMode.ON if enable else OperationMode.OFF
+            self._oper_data["VSWING"] = (
+                OperationMode.ON if enable else OperationMode.OFF
+            )
 
     def is_vertical_swing(self) -> bool:
         if "VSWING" in self._oper_data:
@@ -76,9 +85,8 @@ class ElectraAirConditioner(object):
             return self._oper_data["AC_MODE"] != OperationMode.STANDBY
 
     def turn_on(self) -> None:
-        if not self.is_on():
-            if "TURN_ON_OFF" in self._oper_data:
-                self._oper_data["TURN_ON_OFF"] = OperationMode.ON
+        if not self.is_on() and "TURN_ON_OFF" in self._oper_data:
+            self._oper_data["TURN_ON_OFF"] = OperationMode.ON
 
     def turn_off(self) -> None:
         if self.is_on():
@@ -98,14 +106,17 @@ class ElectraAirConditioner(object):
         return self._oper_data["FANSPD"]
 
     def set_fan_speed(self, speed: str) -> None:
-        if speed in [
-            OperationMode.FAN_SPEED_AUTO,
-            OperationMode.FAN_SPEED_HIGH,
-            OperationMode.FAN_SPEED_MED,
-            OperationMode.FAN_SPEED_LOW,
-        ]:
-            if speed != self._oper_data["FANSPD"]:
-                self._oper_data["FANSPD"] = speed
+        if (
+            speed
+            in [
+                OperationMode.FAN_SPEED_AUTO,
+                OperationMode.FAN_SPEED_HIGH,
+                OperationMode.FAN_SPEED_MED,
+                OperationMode.FAN_SPEED_LOW,
+            ]
+            and speed != self._oper_data["FANSPD"]
+        ):
+            self._oper_data["FANSPD"] = speed
 
     def set_turbo_mode(self, enable: bool) -> None:
         self._oper_data["TURBO"] = OperationMode.ON if enable else OperationMode.OFF
@@ -123,10 +134,16 @@ class ElectraAirConditioner(object):
         self._oper_data = json.loads(data["commandJson"]["OPER"])["OPER"]
         self._time_delta = data["timeDelta"]
         measurments = json.loads(data["commandJson"]["DIAG_L2"])["DIAG_L2"]
+        # ``I_RAT``/``I_CALC_AT`` are reported as a ×256 left-shifted integer
+        # (e.g. raw 5632 == 22 °C). Normalize back to Celsius when the raw value
+        # is implausible for a room temperature; some units already return the
+        # normalized value, so only shift above the 100 °C threshold.
         if "I_RAT" in measurments:
-            self.collected_measure = int(measurments["I_RAT"])
+            raw_temp = int(measurments["I_RAT"])
+            self.collected_measure = raw_temp >> 8 if raw_temp > 100 else raw_temp
         if "I_CALC_AT" in measurments:
-            self.collected_measure = int(measurments["I_CALC_AT"])
+            raw_temp = int(measurments["I_CALC_AT"])
+            self.collected_measure = raw_temp >> 8 if raw_temp > 100 else raw_temp
 
         self.current_mode = measurments["O_ODU_MODE"]
 
