@@ -1,17 +1,22 @@
 from __future__ import annotations
 
-from asyncio import TimeoutError, create_task
+import builtins
+from asyncio import TaskGroup
 from datetime import datetime
 from json import JSONDecodeError
 from logging import getLogger
-from typing import Any, List
+from typing import Any
 
 from aiohttp import ClientError, ClientSession
 
 from electrasmart.device import ElectraAirConditioner
 
-from .const import (DELAY_BETWEEM_SID_REQUESTS, SID_EXPIRATION, STATUS_SUCCESS,
-                    Attributes)
+from .const import (
+    DELAY_BETWEEM_SID_REQUESTS,
+    SID_EXPIRATION,
+    STATUS_SUCCESS,
+    Attributes,
+)
 
 logger = getLogger(__name__)
 
@@ -20,7 +25,7 @@ class ElectraApiError(Exception):
     pass
 
 
-class ElectraAPI(object):
+class ElectraAPI:
     def __init__(
         self,
         websession: ClientSession,
@@ -51,12 +56,16 @@ class ElectraAPI(object):
                 headers={"user-agent": "Electra Client"},
             )
             json_resp: dict[str, Any] = await resp.json(content_type=None)
-        except TimeoutError as ex:
-            raise ElectraApiError(f"Failed to communicate with Electra API due to time out: ({str(ex)})")
+        except builtins.TimeoutError as ex:
+            raise ElectraApiError(
+                f"Failed to communicate with Electra API due to time out: ({ex!s})"
+            )
         except ClientError as ex:
-            raise ElectraApiError(f"Failed to communicate with Electra API due to ClientError: ({str(ex)})")
+            raise ElectraApiError(
+                f"Failed to communicate with Electra API due to ClientError: ({ex!s})"
+            )
         except JSONDecodeError as ex:
-            raise ElectraApiError(f"Recieved invalid response from Electra API: {str(ex)}")
+            raise ElectraApiError(f"Received invalid response from Electra API: {ex!s}")
 
         return json_resp
 
@@ -70,7 +79,9 @@ class ElectraAPI(object):
 
         return await self._send_request(payload=payload)
 
-    async def validate_one_time_password(self, otp: str, imei: str, phone_number: str) -> dict[str, Any]:
+    async def validate_one_time_password(
+        self, otp: str, imei: str, phone_number: str
+    ) -> dict[str, Any]:
         payload = {
             "pvdid": 1,
             "id": 99,
@@ -101,10 +112,12 @@ class ElectraAPI(object):
     async def _get_sid(self, force: bool = False) -> None:
         current_ts = int(datetime.now().timestamp())
         if not force and not self._sid_expired():
-            logger.debug("Found valid sid (%s) in cache, using it", self._sid)
+            logger.debug("Found valid sid in cache, using it")
             return
 
-        if self._last_sid_request_ts and current_ts < (self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS):
+        if self._last_sid_request_ts and current_ts < (
+            self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS
+        ):
             logger.debug(
                 'Session ID was requested less than 5 minutes ago! waiting in order to prevent "intruder lockdown"...'
             )
@@ -129,24 +142,22 @@ class ElectraAPI(object):
         else:
             if not resp[Attributes.DATA][Attributes.SID]:
                 raise ElectraApiError(
-                    "Failed to retrieve SID due to %s",
-                    resp[Attributes.DATA][Attributes.DESC],
+                    f"Failed to retrieve SID due to {resp[Attributes.DATA][Attributes.DESC]}"
                 )
 
             else:
                 self._sid = resp[Attributes.DATA][Attributes.SID]
                 self._sid_expiration = current_ts + SID_EXPIRATION
                 self._last_sid_request_ts = current_ts
-                logger.debug("Successfully acquired sid: %s", self._sid)
+                logger.debug("Successfully acquired session id")
 
     async def fetch_devices(self) -> None:
-        fetch_state_tasks = []
         logger.debug("About to Get Electra AC devices")
         await self._get_sid()
 
         payload = {"pvdid": 1, "id": 99, "cmd": "GET_DEVICES", "sid": self._sid}
 
-        ac_list: List[ElectraAirConditioner] = []
+        ac_list: list[ElectraAirConditioner] = []
         resp = await self._send_request(payload=payload)
         if resp[Attributes.STATUS] == STATUS_SUCCESS:
             for ac in resp[Attributes.DATA][Attributes.DEVICES]:
@@ -154,12 +165,23 @@ class ElectraAPI(object):
                     electra_ac: ElectraAirConditioner = ElectraAirConditioner(ac)
                     logger.debug("Discovered A/C device %s", electra_ac.name)
                     ac_list.append(electra_ac)
-                    fetch_state_tasks.append(create_task(self.get_last_telemtry(electra_ac)))
                 else:
-                    logger.debug("Discovered non AC device %s", ac)
+                    logger.debug(
+                        "Discovered non-AC device of type %s",
+                        ac.get("deviceTypeName"),
+                    )
 
-            for task in fetch_state_tasks:
-                await task
+            try:
+                async with TaskGroup() as tg:
+                    for ac in ac_list:
+                        tg.create_task(self.get_last_telemtry(ac))
+            except ExceptionGroup as exg:
+                # TaskGroup wraps task failures in an ExceptionGroup; surface
+                # the underlying API error so callers can catch ElectraApiError.
+                for exc in exg.exceptions:
+                    if isinstance(exc, ElectraApiError):
+                        raise exc from exg
+                raise
 
             for ac in ac_list:
                 ac.update_features()
@@ -167,7 +189,7 @@ class ElectraAPI(object):
             self._devices = ac_list
 
         else:
-            raise ElectraApiError("Failed to fetch devices %s", resp)
+            raise ElectraApiError(f"Failed to fetch devices {resp}")
 
     async def get_last_telemtry(self, ac: ElectraAirConditioner) -> None:
         logger.debug("Getting AC %s state", ac.name)
