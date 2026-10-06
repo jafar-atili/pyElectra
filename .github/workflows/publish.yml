@@ -20,6 +20,24 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+      - name: Check the tag matches pyproject.toml
+        if: github.ref_type == 'tag'
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import tomllib
+
+          version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
+          tag = os.environ["TAG_NAME"].removeprefix("v")
+          if tag != version:
+              raise SystemExit(
+                  f"tag {os.environ['TAG_NAME']!r} does not match pyproject version {version!r}"
+              )
+          print(f"tag {os.environ['TAG_NAME']!r} matches pyproject version {version!r}")
+          PY
       - name: Build sdist + wheel
         run: |
           python -m pip install --quiet build
