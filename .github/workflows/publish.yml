@@ -1,23 +1,8 @@
 name: publish
 
-# Publishes to PyPI using Trusted Publishing (OIDC), so no API token or secret
-# is stored in the repository.
-#
-# This requires a Trusted Publisher entry on the PyPI project for
-# https://pypi.org/manage/project/pyElectra/settings/publishing/ pointing at:
-#   owner/repository: jafar-atili/pyElectra
-#   workflow name:    publish.yml
-#   environment:      (none, unless one is set here as well)
-# Only a project owner can add that entry. Until it exists this workflow will
-# fail at the upload step, so leave it untriggered.
-#
-# To release: bump `version` in pyproject.toml, commit, then push a matching
-# tag (`git tag 1.2.6 && git push origin 1.2.6`) or run this workflow manually.
-
 on:
   push:
     tags:
-      # Release tags follow the repo convention: bare versions (1.2.5).
       - "[0-9]*"
       - "v*"
   workflow_dispatch:
@@ -41,3 +26,5 @@ jobs:
           python -m build
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@v1.14.2
+        with:
+          skip-existing: true
