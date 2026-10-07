@@ -4,7 +4,7 @@ import json
 from logging import getLogger
 from typing import Any
 
-from .const import Feature, OperationMode
+from .const import MODE_VALUES, Feature, OperationMode
 
 logger = getLogger(__name__)
 
@@ -46,17 +46,7 @@ class ElectraAirConditioner:
         return self._oper_data["AC_MODE"]
 
     def set_mode(self, mode: str) -> None:
-        if (
-            mode
-            in [
-                OperationMode.MODE_AUTO,
-                OperationMode.MODE_COOL,
-                OperationMode.MODE_DRY,
-                OperationMode.MODE_FAN,
-                OperationMode.MODE_HEAT,
-            ]
-            and mode != self._oper_data["AC_MODE"]
-        ):
+        if mode in MODE_VALUES and mode != self._oper_data["AC_MODE"]:
             self._oper_data["AC_MODE"] = mode
 
     def set_horizontal_swing(self, enable: bool) -> None:
@@ -87,9 +77,35 @@ class ElectraAirConditioner:
         else:
             return self._oper_data["AC_MODE"] != OperationMode.STANDBY
 
-    def turn_on(self) -> None:
-        if not self.is_on() and "TURN_ON_OFF" in self._oper_data:
+    def get_last_mode(self) -> str | None:
+        """Return the mode the unit was last running in, if the API reports one.
+
+        Units without a ``TURN_ON_OFF`` field encode the power state in
+        ``AC_MODE``: turning off writes ``STBY`` over it. The last running mode
+        is still reported by the cloud in the ``DIAG_L2`` telemetry
+        (``O_ODU_MODE``), which also covers modes set from the Electra app or
+        the infrared remote rather than by this library.
+        """
+        if self.current_mode in MODE_VALUES:
+            return self.current_mode
+        return None
+
+    def turn_on(self) -> bool:
+        """Turn the unit on, keeping the mode it was last running in.
+
+        Returns ``False`` when the previous mode is unknown, so callers can
+        apply their own fallback instead of sending a no-op.
+        """
+        if self.is_on():
+            return True
+        if "TURN_ON_OFF" in self._oper_data:
             self._oper_data["TURN_ON_OFF"] = OperationMode.ON
+            return True
+        last_mode = self.get_last_mode()
+        if last_mode is None:
+            return False
+        self._oper_data["AC_MODE"] = last_mode
+        return True
 
     def turn_off(self) -> None:
         if self.is_on():
@@ -157,7 +173,11 @@ class ElectraAirConditioner:
             raw_temp = int(measurments["I_CALC_AT"])
             self.collected_measure = raw_temp >> 8 if raw_temp > 100 else raw_temp
 
-        self.current_mode = measurments["O_ODU_MODE"]
+        # ``O_ODU_MODE`` reports the mode the unit was last running in, and is
+        # still populated while the unit is off, so it is the only way to know
+        # what to restore on units without a ``TURN_ON_OFF`` field. Not every
+        # unit reports it, so tolerate its absence.
+        self.current_mode = measurments.get("O_ODU_MODE")
 
     def get_operation_state(self) -> str:
         if "AC_STSRC" in self._oper_data:

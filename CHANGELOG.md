@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.6
+
+- Fix: `turn_on()` was a no-op on units that do not report a `TURN_ON_OFF`
+  field. Those units encode the power state in `AC_MODE`, which `turn_off()`
+  overwrites with `STBY`, so nothing was left to turn back on and the unit
+  stayed off. `turn_on()` now restores the mode the unit was last running in,
+  taken from the `O_ODU_MODE` telemetry field — which the cloud keeps reporting
+  while the unit is off, and which also reflects modes last set from the Electra
+  app or the infrared remote rather than by this library.
+- Change: `turn_on()` now returns `bool`, `False` when the previous mode is
+  unknown so callers can apply their own fallback instead of sending a silent
+  no-op. Callers that ignore the return value are unaffected.
+- Change: `O_ODU_MODE` is no longer required; a unit that omits it no longer
+  raises `KeyError` during a telemetry update.
+- Tests: coverage for both unit families, restoring a mode set outside this
+  library, and the unknown-mode fallback.
+
 ## 1.2.5
 
 - Fix: tolerate device records that omit `deviceToken`; `fetch_devices()` used to
