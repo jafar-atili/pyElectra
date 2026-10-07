@@ -20,6 +20,17 @@ class OperationMode:
     STANDBY = "STBY"
 
 
+# The values ``AC_MODE`` holds while the unit is running. ``STANDBY`` is
+# deliberately absent: it is the "off" value, not a mode.
+MODE_VALUES = (
+    OperationMode.MODE_AUTO,
+    OperationMode.MODE_COOL,
+    OperationMode.MODE_DRY,
+    OperationMode.MODE_FAN,
+    OperationMode.MODE_HEAT,
+)
+
+
 @dataclass
 class Feature:
     V_SWING = 0
