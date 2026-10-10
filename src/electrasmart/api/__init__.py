@@ -160,7 +160,13 @@ class ElectraAPI:
         ac_list: list[ElectraAirConditioner] = []
         resp = await self._send_request(payload=payload)
         if resp[Attributes.STATUS] == STATUS_SUCCESS:
-            for ac in resp[Attributes.DATA][Attributes.DEVICES]:
+            devices = (resp.get(Attributes.DATA) or {}).get(Attributes.DEVICES)
+            if devices is None:
+                raise ElectraApiError(
+                    "Failed to fetch devices: the Electra API returned no device list"
+                )
+
+            for ac in devices:
                 if ac["deviceTypeName"] == "A/C":
                     electra_ac: ElectraAirConditioner = ElectraAirConditioner(ac)
                     logger.debug("Discovered A/C device %s", electra_ac.name)

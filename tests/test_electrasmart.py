@@ -1,7 +1,11 @@
 """Regression tests for the fixes on top of pyElectra 1.2.4."""
 
+import asyncio
 import json
 
+import pytest
+
+from electrasmart.api import ElectraAPI, ElectraApiError
 from electrasmart.device import ElectraAirConditioner
 
 
@@ -197,3 +201,52 @@ def test_missing_odu_mode_does_not_break_the_update() -> None:
     assert ac.current_mode is None
     assert ac.get_last_mode() is None
     assert ac.turn_on() is False
+
+
+def _api_returning(monkeypatch, response: dict) -> ElectraAPI:
+    """An API object whose SID lookup and HTTP call both return canned data."""
+    api = ElectraAPI(websession=None)  # type: ignore[arg-type]
+
+    async def _get_sid(force: bool = False) -> None:
+        return None
+
+    async def _send_request(payload: dict) -> dict:
+        return response
+
+    monkeypatch.setattr(api, "_get_sid", _get_sid)
+    monkeypatch.setattr(api, "_send_request", _send_request)
+    return api
+
+
+def test_fetch_devices_without_a_device_list_raises(monkeypatch) -> None:
+    """A successful response with a null device list must not be iterated."""
+    api = _api_returning(monkeypatch, {"status": 0, "data": {"devices": None}})
+
+    with pytest.raises(ElectraApiError):
+        asyncio.run(api.fetch_devices())
+
+
+def test_fetch_devices_without_a_data_block_raises(monkeypatch) -> None:
+    api = _api_returning(monkeypatch, {"status": 0, "data": None})
+
+    with pytest.raises(ElectraApiError):
+        asyncio.run(api.fetch_devices())
+
+
+def test_fetch_devices_accepts_an_account_with_no_devices(monkeypatch) -> None:
+    """An empty device list is not an error; it simply yields no devices."""
+    api = _api_returning(monkeypatch, {"status": 0, "data": {"devices": []}})
+
+    asyncio.run(api.fetch_devices())
+
+    assert api.devices == []
+
+
+def test_fetch_devices_discovers_an_ac(monkeypatch) -> None:
+    api = _api_returning(
+        monkeypatch, {"status": 0, "data": {"devices": [_device_record()]}}
+    )
+
+    asyncio.run(api.fetch_devices())
+
+    assert [ac.name for ac in api.devices] == ["Living Room AC"]

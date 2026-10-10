@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.2.7
+
+- Fix: `fetch_devices()` raised `TypeError: 'NoneType' object is not iterable` when
+  the API answered with `status: 0` and a null device list, so Home Assistant
+  reported an unhandled traceback instead of a setup failure it could retry.
+  The response is now checked, and a missing device list raises
+  `ElectraApiError` — which the integration already turns into
+  `ConfigEntryNotReady`. An account that legitimately reports an empty list still
+  sets up with no devices, as before.
+- Tests: coverage for a null device list, a missing data block, an account with no
+  devices, and normal device discovery.
+
 ## 1.2.6
 
 - Fix: `turn_on()` was a no-op on units that do not report a `TURN_ON_OFF`
