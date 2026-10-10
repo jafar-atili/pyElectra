@@ -5,7 +5,11 @@ import json
 
 import pytest
 
-from electrasmart.api import ElectraAPI, ElectraApiError
+from electrasmart.api import (
+    ElectraAPI,
+    ElectraApiError,
+    ElectraIntruderLockoutError,
+)
 from electrasmart.device import ElectraAirConditioner
 
 
@@ -250,3 +254,95 @@ def test_fetch_devices_discovers_an_ac(monkeypatch) -> None:
     asyncio.run(api.fetch_devices())
 
     assert [ac.name for ac in api.devices] == ["Living Room AC"]
+
+
+def _sid_response(sid: str | None = None, res_desc: str | None = None) -> dict:
+    return {"status": 0, "data": {"sid": sid, "res_desc": res_desc}}
+
+
+def _api_with_responses(monkeypatch, responses: list) -> tuple[ElectraAPI, list]:
+    """An API object answering with `responses` in order, plus what it sent.
+
+    The last response is reused once the list runs out.
+    """
+    api = ElectraAPI(websession=None)  # type: ignore[arg-type]
+    sent: list[dict] = []
+
+    async def _send_request(payload: dict) -> dict:
+        sent.append(payload)
+        return responses[min(len(sent) - 1, len(responses) - 1)]
+
+    monkeypatch.setattr(api, "_send_request", _send_request)
+    return api, sent
+
+
+def test_successful_sid_request_is_cached(monkeypatch) -> None:
+    api, sent = _api_with_responses(monkeypatch, [_sid_response(sid="a-session-id")])
+
+    asyncio.run(api._get_sid())
+
+    assert api._sid == "a-session-id"
+
+    asyncio.run(api._get_sid())
+
+    assert len(sent) == 1
+
+
+def test_intruder_lockout_raises_a_distinct_error(monkeypatch) -> None:
+    """The vendor lockout must be distinguishable from a transient failure."""
+    api, _ = _api_with_responses(
+        monkeypatch, [_sid_response(res_desc="Intruder lockout")]
+    )
+
+    with pytest.raises(ElectraIntruderLockoutError):
+        asyncio.run(api._get_sid())
+
+
+def test_lockout_stops_further_sid_requests(monkeypatch) -> None:
+    """Retrying into a lockout is what keeps the account locked out."""
+    api, sent = _api_with_responses(
+        monkeypatch, [_sid_response(res_desc="Intruder lockout")]
+    )
+
+    with pytest.raises(ElectraIntruderLockoutError):
+        asyncio.run(api._get_sid())
+
+    with pytest.raises(ElectraApiError) as err:
+        asyncio.run(api._get_sid())
+
+    assert not isinstance(err.value, ElectraIntruderLockoutError)
+    assert len(sent) == 1
+
+
+def test_a_rejected_sid_request_also_arms_the_delay(monkeypatch) -> None:
+    """A request that failed for any other reason still counts as an attempt."""
+    api, sent = _api_with_responses(
+        monkeypatch, [_sid_response(res_desc="Something else")]
+    )
+
+    with pytest.raises(ElectraApiError):
+        asyncio.run(api._get_sid())
+
+    with pytest.raises(ElectraApiError):
+        asyncio.run(api._get_sid())
+
+    assert len(sent) == 1
+
+
+def test_force_does_not_bypass_the_delay(monkeypatch) -> None:
+    """`force` skips the cache, not the vendor's rate limit."""
+    api, sent = _api_with_responses(monkeypatch, [_sid_response(sid="a-session-id")])
+
+    asyncio.run(api._get_sid())
+
+    with pytest.raises(ElectraApiError):
+        asyncio.run(api._get_sid(force=True))
+
+    assert len(sent) == 1
+
+
+def test_sid_response_without_a_data_block_does_not_crash(monkeypatch) -> None:
+    api, _ = _api_with_responses(monkeypatch, [{"status": 0, "data": None}])
+
+    with pytest.raises(ElectraApiError):
+        asyncio.run(api._get_sid())

@@ -25,6 +25,15 @@ class ElectraApiError(Exception):
     pass
 
 
+class ElectraIntruderLockoutError(ElectraApiError):
+    """The account is locked out by the vendor.
+
+    The cloud refuses to hand out a session ID until the account signs in
+    again, which only the one-time-password flow does. Retrying cannot clear
+    it, so callers should surface this as an authentication problem instead.
+    """
+
+
 class ElectraAPI:
     def __init__(
         self,
@@ -119,9 +128,15 @@ class ElectraAPI:
             self._last_sid_request_ts + DELAY_BETWEEM_SID_REQUESTS
         ):
             logger.debug(
-                'Session ID was requested less than 5 minutes ago! waiting in order to prevent "intruder lockdown"...'
+                "Session ID was requested less than %s minutes ago! waiting in "
+                'order to prevent "intruder lockdown"...',
+                DELAY_BETWEEM_SID_REQUESTS // 60,
             )
-            return
+            raise ElectraApiError(
+                "Failed to retrieve SID: a session ID was requested less than "
+                f"{DELAY_BETWEEM_SID_REQUESTS // 60} minutes ago, waiting in order "
+                'to prevent an "intruder lockdown"'
+            )
 
         payload = {
             "pvdid": 1,
@@ -135,21 +150,28 @@ class ElectraAPI:
             },
         }
 
+        # Recorded before the request: a rejected attempt counts against the
+        # account's lockout just like an accepted one.
+        self._last_sid_request_ts = current_ts
+
         resp = await self._send_request(payload=payload)
 
         if resp is None:
             raise ElectraApiError("Failed to retrieve sid")
-        else:
-            if not resp[Attributes.DATA][Attributes.SID]:
-                raise ElectraApiError(
-                    f"Failed to retrieve SID due to {resp[Attributes.DATA][Attributes.DESC]}"
+
+        data = resp.get(Attributes.DATA) or {}
+        if not data.get(Attributes.SID):
+            description = data.get(Attributes.DESC)
+            if description == Attributes.INTRUDER_LOCKOUT:
+                raise ElectraIntruderLockoutError(
+                    "Failed to retrieve SID due to Intruder lockout"
                 )
 
-            else:
-                self._sid = resp[Attributes.DATA][Attributes.SID]
-                self._sid_expiration = current_ts + SID_EXPIRATION
-                self._last_sid_request_ts = current_ts
-                logger.debug("Successfully acquired session id")
+            raise ElectraApiError(f"Failed to retrieve SID due to {description}")
+
+        self._sid = data[Attributes.SID]
+        self._sid_expiration = current_ts + SID_EXPIRATION
+        logger.debug("Successfully acquired session id")
 
     async def fetch_devices(self) -> None:
         logger.debug("About to Get Electra AC devices")
