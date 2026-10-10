@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.8
+
+- Fix: a rejected request for a session ID did not count as an attempt, so the
+  5-minute delay between `VALIDATE_TOKEN` requests never applied while the account
+  was locked out — every retry went straight back to the API, forever. The
+  timestamp is now recorded before the request rather than on success, and the
+  delay raises an `ElectraApiError` instead of returning without a session ID and
+  leaving the caller to send a request with `sid: null`.
+- Change: an `Intruder lockout` answer now raises `ElectraIntruderLockoutError`, a
+  subclass of `ElectraApiError`, so callers can tell the vendor lockout — which
+  only signing in again clears — from a transient failure. The check is what the
+  previously unused `Attributes.INTRUDER_LOCKOUT` constant was declared for.
+- Fix: a `VALIDATE_TOKEN` response without a `data` object no longer raises
+  `TypeError`.
+- Tests: coverage for the lockout, both delay paths, the session ID cache and
+  `force`.
+
 ## 1.2.7
 
 - Fix: `fetch_devices()` raised `TypeError: 'NoneType' object is not iterable` when

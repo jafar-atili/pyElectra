@@ -65,7 +65,9 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-Network failures and API-level errors raise `ElectraApiError`.
+Network failures and API-level errors raise `ElectraApiError`. An account the
+vendor has locked out raises `ElectraIntruderLockoutError`, a subclass of it,
+which nothing but signing in again will clear.
 
 ## Changelog
 
