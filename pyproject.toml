@@ -36,5 +36,12 @@ electrasmart = ["py.typed"]
 target-version = "py311"
 line-length = 88
 
+[tool.coverage.run]
+source = ["electrasmart"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
