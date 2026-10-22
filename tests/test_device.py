@@ -240,3 +240,78 @@ def test_get_operation_state_leaves_the_source_alone_without_the_field() -> None
     oper = json.loads(ac.get_operation_state())["OPER"]
 
     assert "AC_STSRC" not in oper
+
+
+def test_device_record_carries_the_serial_and_the_versions() -> None:
+    """The record reports a serial number, firmware and hardware versions."""
+    ac = ElectraAirConditioner(
+        {
+            **_device_record(),
+            "sn": "J4B60300391",
+            "fmVersion": "611V4-C20",
+            "hwVersion": "V1",
+        }
+    )
+
+    assert ac.serial_number == "J4B60300391"
+    assert ac.fm_version == "611V4-C20"
+    assert ac.hw_version == "V1"
+
+
+def test_versions_default_to_empty_when_the_record_omits_them() -> None:
+    """Not every device record carries a serial or a version."""
+    ac = ElectraAirConditioner(_device_record())
+
+    assert ac.serial_number == ""
+    assert ac.fm_version == ""
+    assert ac.hw_version == ""
+
+
+def test_measurements_keep_the_whole_diagnostics_block() -> None:
+    """The telemetry is retained, not just the fields this library reads."""
+    ac = _ac({"AC_MODE": "COOL"}, {"WI_FI_RSSI": "-53", "I_ICT": "21"})
+
+    assert ac.measurements["WI_FI_RSSI"] == "-53"
+    assert ac.measurements["I_ICT"] == "21"
+
+
+def test_measurements_are_empty_before_the_first_update() -> None:
+    ac = ElectraAirConditioner(_device_record())
+
+    assert ac.measurements == {}
+
+
+def test_measurement_temperature_normalizes_a_raw_value() -> None:
+    """Temperature fields are ×256 left-shifted on some units, not others."""
+    ac = _ac({"AC_MODE": "COOL"}, {"I_ICT": "5632", "I_RCT": "22"})
+
+    assert ac.get_measurement_temperature("I_ICT") == 22
+    assert ac.get_measurement_temperature("I_RCT") == 22
+
+
+def test_measurement_temperature_is_none_without_the_field() -> None:
+    """A unit that does not report the field must not raise."""
+    ac = _running()
+
+    assert ac.get_measurement_temperature("O_OAT") is None
+
+
+def test_measurement_temperature_is_none_for_a_non_numeric_value() -> None:
+    ac = _ac({"AC_MODE": "COOL"}, {"O_OAT": "N/A"})
+
+    assert ac.get_measurement_temperature("O_OAT") is None
+
+
+def test_filter_clean_required_follows_the_reminder_flag() -> None:
+    assert (
+        _ac({"AC_MODE": "COOL", "CLEAR_FILT": "ON"}).get_filter_clean_required() is True
+    )
+    assert (
+        _ac({"AC_MODE": "COOL", "CLEAR_FILT": "OFF"}).get_filter_clean_required()
+        is False
+    )
+
+
+def test_filter_clean_required_is_false_without_the_field() -> None:
+    """A unit that does not report the reminder must not raise."""
+    assert _running().get_filter_clean_required() is False

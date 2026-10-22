@@ -17,6 +17,8 @@ class ElectraAirConditioner:
         self.regdate: str = data.get("regdate", "")
         self.model = data.get("model", "")
         self.serial_number: str = data.get("sn", "")
+        self.fm_version: str = data.get("fmVersion", "")
+        self.hw_version: str = data.get("hwVersion", "")
         self.manufactor: str = data.get("manufactor", "")
         self.type: str = data.get("deviceTypeName", "")
         self.status: str = data.get("status", "")
@@ -28,6 +30,12 @@ class ElectraAirConditioner:
 
         self.current_mode: str | None = None
         self.collected_measure: int | None = None
+        # The raw ``DIAG_L2`` telemetry block, which carries far more than the
+        # three fields this library reads out of it (radio signal, coil
+        # temperatures, health flags, bus counters). Callers that want to
+        # surface any of it read it from here rather than the library dropping
+        # it on the floor.
+        self.measurements: dict[str, Any] = {}
         self._oper_data: dict[str, str] = {}
 
     def is_disconnected(self, thresh_sec: int = 60) -> bool:
@@ -149,6 +157,15 @@ class ElectraAirConditioner:
     def get_shabat_mode(self) -> bool:
         return self._oper_data["SHABAT"] == OperationMode.ON
 
+    def get_filter_clean_required(self) -> bool:
+        """Return whether the unit is asking for the filter to be cleaned.
+
+        ``CLEAR_FILT`` is the filter-cleaning reminder the Electra app shows.
+        Not every unit reports the field, so a unit that omits it reads as
+        having no reminder rather than raising.
+        """
+        return self._oper_data.get("CLEAR_FILT") == OperationMode.ON
+
     def update_operation_states(self, data: dict[str, Any]) -> None:
         command_json = (data or {}).get("commandJson") or {}
         oper = command_json.get("OPER")
@@ -161,23 +178,40 @@ class ElectraAirConditioner:
 
         self._oper_data = json.loads(oper)["OPER"]
         self._time_delta = data["timeDelta"]
-        measurments = json.loads(diag_l2)["DIAG_L2"]
-        # ``I_RAT``/``I_CALC_AT`` are reported as a ×256 left-shifted integer
-        # (e.g. raw 5632 == 22 °C). Normalize back to Celsius when the raw value
-        # is implausible for a room temperature; some units already return the
-        # normalized value, so only shift above the 100 °C threshold.
-        if "I_RAT" in measurments:
-            raw_temp = int(measurments["I_RAT"])
-            self.collected_measure = raw_temp >> 8 if raw_temp > 100 else raw_temp
-        if "I_CALC_AT" in measurments:
-            raw_temp = int(measurments["I_CALC_AT"])
-            self.collected_measure = raw_temp >> 8 if raw_temp > 100 else raw_temp
+        self.measurements = json.loads(diag_l2)["DIAG_L2"]
+        # ``I_RAT``/``I_CALC_AT`` both report the room temperature; the
+        # calculated one wins when the unit sends both.
+        for field in ("I_RAT", "I_CALC_AT"):
+            temperature = self.get_measurement_temperature(field)
+            if temperature is not None:
+                self.collected_measure = temperature
 
         # ``O_ODU_MODE`` reports the mode the unit was last running in, and is
         # still populated while the unit is off, so it is the only way to know
         # what to restore on units without a ``TURN_ON_OFF`` field. Not every
         # unit reports it, so tolerate its absence.
-        self.current_mode = measurments.get("O_ODU_MODE")
+        self.current_mode = self.measurements.get("O_ODU_MODE")
+
+    def get_measurement_temperature(self, field: str) -> int | None:
+        """Return a temperature field from the diagnostics, in Celsius.
+
+        Temperature fields in ``DIAG_L2`` are reported as a ×256 left-shifted
+        integer (e.g. raw 5632 == 22 °C), while some units already send the
+        normalized value, so only shift above the 100 °C threshold. Returns
+        ``None`` for a unit that does not report the field, or reports
+        something that is not a number.
+        """
+        raw = self.measurements.get(field)
+        if raw is None:
+            return None
+
+        try:
+            raw_temp = int(raw)
+        except (TypeError, ValueError):
+            logger.debug("Ignoring non-numeric %s measurement: %r", field, raw)
+            return None
+
+        return raw_temp >> 8 if raw_temp > 100 else raw_temp
 
     def get_operation_state(self) -> str:
         if "AC_STSRC" in self._oper_data:
