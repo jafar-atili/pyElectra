@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.2.9
+
+- Change: the `DIAG_L2` telemetry block is no longer discarded. It is kept as
+  `ElectraAirConditioner.measurements`, so a caller can surface the fields this
+  library does not read itself — the radio signal strength, the coil
+  temperatures, the health flags and the bus counters.
+- Change: `get_measurement_temperature(field)` returns a telemetry temperature in
+  Celsius, applying the same ×256 normalization the room temperature already went
+  through. It returns `None` for a unit that does not report the field, or that
+  reports something which is not a number, instead of raising.
+- Change: the device record's firmware and hardware versions are parsed into
+  `fm_version` and `hw_version`, next to the existing `serial_number`.
+- Change: `get_filter_clean_required()` reads the `CLEAR_FILT` filter-cleaning
+  reminder from `OPER`. A unit that does not report the field reads as having no
+  reminder.
+- Fix: a non-numeric `I_RAT`/`I_CALC_AT` value no longer raises `ValueError`
+  mid-poll; the room temperature keeps the value it already had.
+- Tests: coverage for the retained telemetry, the temperature normalization and
+  its missing and non-numeric cases, the parsed versions and the filter reminder.
+
 ## 1.2.8
 
 - Fix: a rejected request for a session ID did not count as an attempt, so the
