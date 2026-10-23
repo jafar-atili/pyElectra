@@ -69,6 +69,13 @@ def test_already_normalized_temperature_is_left_alone() -> None:
     assert ac.get_sensor_temperature() == 22
 
 
+def test_negative_raw_x256_temperature_is_normalized() -> None:
+    """An encoded -1280 is -5 °C, and it reaches the room temperature too."""
+    ac = ElectraAirConditioner(_device_record())
+    ac.update_operation_states(_telemetry(-1280))
+    assert ac.get_sensor_temperature() == -5
+
+
 def test_missing_telemetry_leaves_no_temperature() -> None:
     ac = ElectraAirConditioner(_device_record())
     assert ac.get_sensor_temperature() is None

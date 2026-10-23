@@ -289,6 +289,14 @@ def test_measurement_temperature_normalizes_a_raw_value() -> None:
     assert ac.get_measurement_temperature("I_RCT") == 22
 
 
+def test_measurement_temperature_normalizes_a_negative_raw_value() -> None:
+    """A raw value below zero is encoded too, and must be shifted as well."""
+    ac = _ac({"AC_MODE": "COOL"}, {"O_OCT": "-1280", "I_RCT": "-5"})
+
+    assert ac.get_measurement_temperature("O_OCT") == -5
+    assert ac.get_measurement_temperature("I_RCT") == -5
+
+
 def test_measurement_temperature_is_none_without_the_field() -> None:
     """A unit that does not report the field must not raise."""
     ac = _running()
@@ -312,6 +320,6 @@ def test_filter_clean_required_follows_the_reminder_flag() -> None:
     )
 
 
-def test_filter_clean_required_is_false_without_the_field() -> None:
-    """A unit that does not report the reminder must not raise."""
-    assert _running().get_filter_clean_required() is False
+def test_filter_clean_required_is_none_without_the_field() -> None:
+    """A unit that does not report the reminder says so instead of raising."""
+    assert _running().get_filter_clean_required() is None
