@@ -157,14 +157,19 @@ class ElectraAirConditioner:
     def get_shabat_mode(self) -> bool:
         return self._oper_data["SHABAT"] == OperationMode.ON
 
-    def get_filter_clean_required(self) -> bool:
+    def get_filter_clean_required(self) -> bool | None:
         """Return whether the unit is asking for the filter to be cleaned.
 
         ``CLEAR_FILT`` is the filter-cleaning reminder the Electra app shows.
-        Not every unit reports the field, so a unit that omits it reads as
-        having no reminder rather than raising.
+        ``None`` means the unit does not report the field at all, so a caller
+        can leave its entity out instead of reporting a reminder that the unit
+        never sent.
         """
-        return self._oper_data.get("CLEAR_FILT") == OperationMode.ON
+        value = self._oper_data.get("CLEAR_FILT")
+        if value is None:
+            return None
+
+        return value == OperationMode.ON
 
     def update_operation_states(self, data: dict[str, Any]) -> None:
         command_json = (data or {}).get("commandJson") or {}
@@ -197,9 +202,9 @@ class ElectraAirConditioner:
 
         Temperature fields in ``DIAG_L2`` are reported as a ×256 left-shifted
         integer (e.g. raw 5632 == 22 °C), while some units already send the
-        normalized value, so only shift above the 100 °C threshold. Returns
-        ``None`` for a unit that does not report the field, or reports
-        something that is not a number.
+        normalized value, so only shift beyond the 100 °C threshold, in either
+        direction: an encoded -1280 is -5 °C. Returns ``None`` for a unit that
+        does not report the field, or reports something that is not a number.
         """
         raw = self.measurements.get(field)
         if raw is None:
@@ -211,7 +216,7 @@ class ElectraAirConditioner:
             logger.debug("Ignoring non-numeric %s measurement: %r", field, raw)
             return None
 
-        return raw_temp >> 8 if raw_temp > 100 else raw_temp
+        return raw_temp >> 8 if abs(raw_temp) > 100 else raw_temp
 
     def get_operation_state(self) -> str:
         if "AC_STSRC" in self._oper_data:

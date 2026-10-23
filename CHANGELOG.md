@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.10
+
+- Fix: `get_measurement_temperature(field)` left an encoded negative reading
+  as it came in, because only values above the 100 °C threshold were shifted.
+  An encoded -1280 is -5 °C, and it is shifted now. This also fixes the room
+  temperature, which is read through the same method.
+- Change: `get_filter_clean_required()` returns `None` for a unit that does not
+  report `CLEAR_FILT` at all, instead of `False`. A caller that creates an
+  entity for the reminder can now tell "not reported" from "no reminder".
+
 ## 1.2.9
 
 - Change: the `DIAG_L2` telemetry block is no longer discarded. It is kept as
