@@ -10,6 +10,7 @@ from aiohttp import ClientError
 
 from electrasmart.api import ElectraAPI, ElectraApiError
 from electrasmart.device import ElectraAirConditioner
+from electrasmart.event import ElectraEvent
 
 
 def _device_record(device_type: str = "A/C") -> dict:
@@ -415,3 +416,195 @@ def test_set_state_replays_a_refused_command(monkeypatch) -> None:
 
     assert result == {"status": 0}
     assert [payload["sid"] for payload in sent] == [None, "renewed-sid"]
+
+
+def _events_answer(events, *, res: int = 0, status: int = 0) -> dict:
+    """A ``GET_EVENTS`` answer, with the event list stringified as the cloud does."""
+    return {
+        "status": status,
+        "data": {
+            "enabled": True,
+            "events": events if isinstance(events, str) else json.dumps(events),
+            "res": res,
+        },
+    }
+
+
+def _timer(event_id: str = "a-timer-id") -> dict:
+    return {
+        "eventId": event_id,
+        "time": "17:58",
+        "days": 94,
+        "enabled": False,
+        "actionsJson": {"TURN_ON_OFF": "ON", "SPT": "21"},
+    }
+
+
+def test_get_events_asks_for_the_device_and_parses_the_timers(monkeypatch) -> None:
+    api, sent, _ = _api_answering_each_call(monkeypatch, [_events_answer([_timer()])])
+
+    events = asyncio.run(api.get_events(_device()))
+
+    assert sent[0]["cmd"] == "GET_EVENTS"
+    assert sent[0]["data"] == {"deviceId": "1234123456"}
+    assert [event.event_id for event in events] == ["a-timer-id"]
+    assert events[0].weekdays == (
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "saturday",
+    )
+    assert events[0].actions == {"TURN_ON_OFF": "ON", "SPT": "21"}
+
+
+def test_get_events_accepts_an_already_parsed_list(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch,
+        [{"status": 0, "data": {"enabled": True, "events": [_timer()], "res": 0}}],
+    )
+
+    events = asyncio.run(api.get_events(_device()))
+
+    assert [event.event_id for event in events] == ["a-timer-id"]
+
+
+def test_get_events_is_empty_when_the_cloud_sends_no_list(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(monkeypatch, [_events_answer(None)])
+
+    assert asyncio.run(api.get_events(_device())) == []
+
+
+def test_get_events_raises_when_the_cloud_reports_a_failure(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(monkeypatch, [_events_answer(None, status=1)])
+
+    with pytest.raises(ElectraApiError, match="Failed to get the events"):
+        asyncio.run(api.get_events(_device()))
+
+
+def test_get_events_raises_when_the_request_was_refused(monkeypatch) -> None:
+    """Without a device id the cloud answers res 99 rather than an error."""
+    api, _, _ = _api_answering_each_call(monkeypatch, [_events_answer(None, res=99)])
+
+    with pytest.raises(ElectraApiError, match="res 99"):
+        asyncio.run(api.get_events(_device()))
+
+
+def test_create_event_leaves_the_id_out_and_reads_the_new_timer_back(
+    monkeypatch,
+) -> None:
+    api, sent, _ = _api_answering_each_call(
+        monkeypatch,
+        [
+            _events_answer([]),
+            {"status": 0, "data": {"res": 0}},
+            _events_answer([_timer()]),
+        ],
+    )
+    new = ElectraEvent("", "17:58", 94, False, {"TURN_ON_OFF": "ON"})
+
+    created = asyncio.run(api.create_event(_device(), new))
+
+    set_event = sent[1]
+    assert set_event["cmd"] == "SET_EVENT"
+    assert set_event["data"]["deviceId"] == "1234123456"
+    assert "eventId" not in set_event["data"]["event"]
+    assert created.event_id == "a-timer-id"
+
+
+def test_create_event_checks_the_time_before_calling_the_cloud(monkeypatch) -> None:
+    api, sent, _ = _api_answering_each_call(monkeypatch, [])
+
+    with pytest.raises(ValueError, match="HH:MM"):
+        asyncio.run(
+            api.create_event(_device(), ElectraEvent("", "24:00", 127, True, {}))
+        )
+
+    assert sent == []
+
+
+def test_create_event_raises_when_the_new_timer_does_not_appear(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch,
+        [
+            _events_answer([]),
+            {"status": 0, "data": {"res": 0}},
+            _events_answer([]),
+        ],
+    )
+
+    with pytest.raises(ElectraApiError, match="0 new events"):
+        asyncio.run(
+            api.create_event(_device(), ElectraEvent("", "17:58", 127, False, {}))
+        )
+
+
+def test_update_event_posts_the_existing_id(monkeypatch) -> None:
+    api, sent, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"res": 0}}]
+    )
+
+    asyncio.run(
+        api.update_event(
+            _device(), ElectraEvent("a-timer-id", "06:15", 127, True, {"SPT": "22"})
+        )
+    )
+
+    assert sent[0]["data"]["event"] == {
+        "eventId": "a-timer-id",
+        "time": "06:15",
+        "days": 127,
+        "enabled": True,
+        "actionsJson": {"SPT": "22"},
+    }
+
+
+def test_update_event_raises_when_the_save_is_refused(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"res": 99}}]
+    )
+
+    with pytest.raises(ElectraApiError, match="Failed to save the event"):
+        asyncio.run(
+            api.update_event(_device(), ElectraEvent("an-id", "06:15", 127, True, {}))
+        )
+
+
+def test_update_event_raises_when_the_cloud_reports_a_failure(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 1, "data": {"res": 0}}]
+    )
+
+    with pytest.raises(ElectraApiError, match="Failed to save the event"):
+        asyncio.run(
+            api.update_event(_device(), ElectraEvent("an-id", "06:15", 127, True, {}))
+        )
+
+
+def test_delete_event_posts_the_event_id(monkeypatch) -> None:
+    api, sent, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"res": 0}}]
+    )
+
+    asyncio.run(api.delete_event(_device(), "a-timer-id"))
+
+    assert sent[0]["cmd"] == "DELETE_EVENT"
+    assert sent[0]["data"] == {"deviceId": "1234123456", "eventId": "a-timer-id"}
+
+
+def test_delete_event_raises_when_the_delete_is_refused(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"res": 100}}]
+    )
+
+    with pytest.raises(ElectraApiError, match="Failed to delete the event"):
+        asyncio.run(api.delete_event(_device(), "a-timer-id"))
+
+
+def test_delete_event_raises_when_the_cloud_reports_a_failure(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 1, "data": {"res": 0}}]
+    )
+
+    with pytest.raises(ElectraApiError, match="Failed to delete the event"):
+        asyncio.run(api.delete_event(_device(), "a-timer-id"))

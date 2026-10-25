@@ -1,3 +1,3 @@
 name = "electrasmart"
 
-__all__ = ["api", "device"]
+__all__ = ["api", "device", "event"]
