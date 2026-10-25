@@ -306,3 +306,112 @@ def test_set_state_sends_the_operation_state(monkeypatch) -> None:
         "id": "1234123456",
         "commandJson": json.dumps({"OPER": {}}),
     }
+
+
+def _api_answering_each_call(
+    monkeypatch, responses: list[dict | None]
+) -> tuple[ElectraAPI, list[dict], list[bool]]:
+    """An API object answering every call with the next response.
+
+    Returns the API, the payloads it sent, and which session ID lookups were
+    forced renewals.
+    """
+    api = ElectraAPI(  # type: ignore[arg-type]
+        websession=None, imei="2b95000012345678", token="a-token"
+    )
+    sent: list[dict] = []
+    renewals: list[bool] = []
+
+    async def _send_request(payload: dict) -> dict:
+        sent.append(dict(payload))
+        return responses[min(len(sent) - 1, len(responses) - 1)]
+
+    async def _get_sid(force: bool = False) -> None:
+        renewals.append(force)
+        if force:
+            api._sid = "renewed-sid"
+
+    monkeypatch.setattr(api, "_send_request", _send_request)
+    monkeypatch.setattr(api, "_get_sid", _get_sid)
+    return api, sent, renewals
+
+
+def test_a_successful_request_does_not_renew_the_session_id(monkeypatch) -> None:
+    api, sent, renewals = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"devices": []}}]
+    )
+
+    asyncio.run(api.fetch_devices())
+
+    assert len(sent) == 1
+    assert renewals == [False]
+
+
+def test_a_refused_request_is_replayed_with_a_renewed_session_id(monkeypatch) -> None:
+    """A session ID the cloud no longer accepts heals itself."""
+    api, sent, renewals = _api_answering_each_call(
+        monkeypatch,
+        [
+            {"status": 1, "data": {}},
+            {"status": 0, "data": {"devices": [_device_record()]}},
+        ],
+    )
+
+    asyncio.run(api.fetch_devices())
+
+    assert [payload["cmd"] for payload in sent[:2]] == ["GET_DEVICES", "GET_DEVICES"]
+    assert [payload["sid"] for payload in sent[:2]] == [None, "renewed-sid"]
+    # One forced renewal for the replay, the rest are ordinary lookups.
+    assert renewals == [False, True, False]
+    assert [ac.name for ac in api.devices] == ["Living Room AC"]
+
+
+def test_a_refused_request_that_cannot_be_renewed_reports_the_refusal(
+    monkeypatch,
+) -> None:
+    """The lockout protection refuses a second token validation.
+
+    The original answer is what the caller gets then: a renewal error would
+    hide why the request failed in the first place.
+    """
+    api = ElectraAPI(  # type: ignore[arg-type]
+        websession=None, imei="2b95000012345678", token="a-token"
+    )
+    sent: list[dict] = []
+
+    async def _send_request(payload: dict) -> dict:
+        sent.append(dict(payload))
+        return {"status": 1, "data": {}}
+
+    async def _get_sid(force: bool = False) -> None:
+        if force:
+            raise ElectraApiError("a session ID was requested less than 5 minutes ago")
+
+    monkeypatch.setattr(api, "_send_request", _send_request)
+    monkeypatch.setattr(api, "_get_sid", _get_sid)
+
+    with pytest.raises(ElectraApiError) as err:
+        asyncio.run(api.fetch_devices())
+
+    assert "Failed to fetch devices" in str(err.value)
+    assert len(sent) == 1
+
+
+def test_an_unreadable_body_is_returned_without_a_retry(monkeypatch) -> None:
+    """A body this client cannot read is not a stale session ID."""
+    api, sent, renewals = _api_answering_each_call(monkeypatch, [None])
+
+    result = asyncio.run(api._send_request_with_sid({"cmd": "GET_DEVICES"}))
+
+    assert result is None
+    assert len(sent) == 1
+    assert renewals == [False]
+
+
+def test_set_state_replays_a_refused_command(monkeypatch) -> None:
+    api, sent, _ = _api_answering_each_call(monkeypatch, [{"status": 1}, {"status": 0}])
+
+    result = asyncio.run(api.set_state(_device()))
+
+    assert result == {"status": 0}
+    assert [payload["sid"] for payload in sent] == [None, "renewed-sid"]

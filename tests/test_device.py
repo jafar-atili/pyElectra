@@ -198,7 +198,9 @@ def test_set_fan_speed_ignores_the_speed_it_is_already_in() -> None:
 
 
 def test_turbo_mode_can_be_read_and_set() -> None:
-    ac = _running()
+    ac = _ac({"AC_MODE": "COOL", "TURBO": "OFF"})
+
+    assert ac.get_turbo_mode() is False
 
     ac.set_turbo_mode(True)
     assert ac.get_turbo_mode() is True
@@ -208,13 +210,76 @@ def test_turbo_mode_can_be_read_and_set() -> None:
 
 
 def test_shabat_mode_can_be_read_and_set() -> None:
-    ac = _running()
+    ac = _ac({"AC_MODE": "COOL", "SHABAT": "OFF"})
+
+    assert ac.get_shabat_mode() is False
 
     ac.set_shabat_mode(True)
     assert ac.get_shabat_mode() is True
 
     ac.set_shabat_mode(False)
     assert ac.get_shabat_mode() is False
+
+
+def test_ifeel_mode_can_be_read_and_set() -> None:
+    ac = _ac({"AC_MODE": "COOL", "IFEEL": "OFF"})
+
+    assert ac.get_ifeel_mode() is False
+
+    ac.set_ifeel_mode(True)
+    assert ac.get_ifeel_mode() is True
+
+    ac.set_ifeel_mode(False)
+    assert ac.get_ifeel_mode() is False
+
+
+def test_sleep_mode_can_be_read_and_set() -> None:
+    ac = _ac({"AC_MODE": "COOL", "SLEEP": "OFF"})
+
+    assert ac.get_sleep_mode() is False
+
+    ac.set_sleep_mode(True)
+    assert ac.get_sleep_mode() is True
+
+    ac.set_sleep_mode(False)
+    assert ac.get_sleep_mode() is False
+
+
+def test_timer_mode_can_be_read_and_set() -> None:
+    ac = _ac({"AC_MODE": "COOL", "TIMER": "OFF"})
+
+    assert ac.get_timer_mode() is False
+
+    ac.set_timer_mode(True)
+    assert ac.get_timer_mode() is True
+
+    ac.set_timer_mode(False)
+    assert ac.get_timer_mode() is False
+
+
+def test_flag_modes_are_none_without_the_field() -> None:
+    """A unit that omits a flag says so, instead of reading as switched off."""
+    ac = _running()
+
+    assert ac.get_ifeel_mode() is None
+    assert ac.get_sleep_mode() is None
+    assert ac.get_timer_mode() is None
+    assert ac.get_turbo_mode() is None
+    assert ac.get_shabat_mode() is None
+
+
+def test_flag_setters_do_nothing_without_the_field() -> None:
+    """Nothing may be added to the OPER map a unit did not report itself."""
+    ac = _running()
+    oper_before = dict(ac._oper_data)
+
+    ac.set_ifeel_mode(True)
+    ac.set_sleep_mode(True)
+    ac.set_timer_mode(True)
+    ac.set_turbo_mode(True)
+    ac.set_shabat_mode(True)
+
+    assert ac._oper_data == oper_before
 
 
 def test_i_calc_at_is_used_when_i_rat_is_absent() -> None:
