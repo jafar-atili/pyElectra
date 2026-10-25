@@ -146,16 +146,25 @@ class ElectraAirConditioner:
             self._oper_data["FANSPD"] = speed
 
     def set_turbo_mode(self, enable: bool) -> None:
-        self._oper_data["TURBO"] = OperationMode.ON if enable else OperationMode.OFF
+        """Turn the turbo mode on or off.
 
-    def get_turbo_mode(self) -> bool:
-        return self._oper_data["TURBO"] == OperationMode.ON
+        A unit that does not report ``TURBO`` is left alone: writing the field
+        anyway would add it to the full ``OPER`` map this library sends back on
+        every command.
+        """
+        self._set_flag("TURBO", enable)
+
+    def get_turbo_mode(self) -> bool | None:
+        """Return whether turbo is on, or ``None`` for a unit without it."""
+        return self._is_flag_enabled("TURBO")
 
     def set_shabat_mode(self, enable: bool) -> None:
-        self._oper_data["SHABAT"] = OperationMode.ON if enable else OperationMode.OFF
+        """Turn the Shabat mode on or off, leaving a unit without it alone."""
+        self._set_flag("SHABAT", enable)
 
-    def get_shabat_mode(self) -> bool:
-        return self._oper_data["SHABAT"] == OperationMode.ON
+    def get_shabat_mode(self) -> bool | None:
+        """Return whether Shabat mode is on, or ``None`` for a unit without it."""
+        return self._is_flag_enabled("SHABAT")
 
     def _is_flag_enabled(self, field: str) -> bool | None:
         """Read an on/off ``OPER`` field, or ``None`` when the unit omits it."""

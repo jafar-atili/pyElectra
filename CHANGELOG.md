@@ -11,6 +11,14 @@
   the Electra app sets. Each `get_` returns `None` for a unit that does not
   report the field and each `set_` leaves such a unit alone, the same rule
   `get_filter_clean_required()` follows.
+- Fix: `set_turbo_mode()` and `set_shabat_mode()` wrote their field into the
+  `OPER` map even for a unit that does not report it, and `get_turbo_mode()` /
+  `get_shabat_mode()` indexed it — so such a unit got a `KeyError` out of the
+  getter and carried a field it never sent in every command that followed. Both
+  pairs now use the same helpers as the flags above: an absent field reads as
+  `None` and the setters leave it alone. `get_shabat_mode()` feeds a preset in
+  the Home Assistant integration, which now reads `None` as "no preset" instead
+  of failing the poll.
 - Fix: a request the cloud refuses is replayed once with a renewed session ID.
   A SID the cloud had stopped accepting came back as a non-success status, so
   the call failed until some later poll happened to refresh the token; one
