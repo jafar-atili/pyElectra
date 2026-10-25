@@ -173,14 +173,46 @@ class ElectraAPI:
         self._sid_expiration = current_ts + SID_EXPIRATION
         logger.debug("Successfully acquired session id")
 
+    async def _send_request_with_sid(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Send a request, replaying it once with a renewed session ID.
+
+        The cloud reports a session ID it no longer accepts as a non-success
+        status rather than as an error, which used to surface as a hard failure
+        until some later call happened to refresh the SID. One renewal plus one
+        replay turns that into a call that heals itself.
+
+        A renewal is skipped when the token cannot be validated again — the
+        account's lockout protection refuses a second ``VALIDATE_TOKEN`` inside
+        ``DELAY_BETWEEM_SID_REQUESTS``, and an account that is locked out has to
+        be signed in again by its owner — so the original answer is returned
+        unchanged rather than masked by a second error.
+        """
+        await self._get_sid()
+        payload["sid"] = self._sid
+
+        resp = await self._send_request(payload=payload)
+        if not isinstance(resp, dict) or resp.get(Attributes.STATUS) == STATUS_SUCCESS:
+            # Nothing to retry: either the call went through or the body is not
+            # an answer this client can read at all.
+            return resp
+
+        logger.debug("Request was refused, renewing the session id and retrying once")
+        try:
+            await self._get_sid(force=True)
+        except ElectraApiError as ex:
+            logger.debug("Could not renew the session id: %s", ex)
+            return resp
+
+        payload["sid"] = self._sid
+        return await self._send_request(payload=payload)
+
     async def fetch_devices(self) -> None:
         logger.debug("About to Get Electra AC devices")
-        await self._get_sid()
 
-        payload = {"pvdid": 1, "id": 99, "cmd": "GET_DEVICES", "sid": self._sid}
+        payload = {"pvdid": 1, "id": 99, "cmd": "GET_DEVICES"}
 
         ac_list: list[ElectraAirConditioner] = []
-        resp = await self._send_request(payload=payload)
+        resp = await self._send_request_with_sid(payload)
         if resp[Attributes.STATUS] == STATUS_SUCCESS:
             devices = (resp.get(Attributes.DATA) or {}).get(Attributes.DEVICES)
             if devices is None:
@@ -222,17 +254,14 @@ class ElectraAPI:
     async def get_last_telemtry(self, ac: ElectraAirConditioner) -> None:
         logger.debug("Getting AC %s state", ac.name)
 
-        await self._get_sid()
-
         payload = {
             "pvdid": 1,
             "id": 99,
             "cmd": "GET_LAST_TELEMETRY",
-            "sid": self._sid,
             "data": {"id": ac.id, "commandName": "OPER,DIAG_L2"},
         }
 
-        resp = await self._send_request(payload=payload)
+        resp = await self._send_request_with_sid(payload)
         if resp[Attributes.STATUS] != STATUS_SUCCESS:
             raise ElectraApiError(f"Failed to get AC operation state: {resp}")
         else:
@@ -240,14 +269,12 @@ class ElectraAPI:
 
     async def set_state(self, device: ElectraAirConditioner) -> dict[str, Any]:
         json_command = device.get_operation_state()
-        await self._get_sid()
 
         payload = {
             "pvdid": 1,
             "id": 99,
             "cmd": "SEND_COMMAND",
-            "sid": self._sid,
             "data": {"id": device.id, "commandJson": json_command},
         }
 
-        return await self._send_request(payload=payload)
+        return await self._send_request_with_sid(payload)

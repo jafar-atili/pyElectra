@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.11
+
+- New: `set_ifeel_mode()` / `get_ifeel_mode()`, `set_sleep_mode()` /
+  `get_sleep_mode()` and `set_timer_mode()` / `get_timer_mode()` read and write
+  the `IFEEL`, `SLEEP` and `TIMER` flags in the `OPER` map — the three
+  user-facing flags the other clients of this API already drive and this
+  library never touched. iFeel follows the remote's sensor, sleep ramps the
+  temperature while the room is asleep, and timer is the server-side schedule
+  the Electra app sets. Each `get_` returns `None` for a unit that does not
+  report the field and each `set_` leaves such a unit alone, the same rule
+  `get_filter_clean_required()` follows.
+- Fix: a request the cloud refuses is replayed once with a renewed session ID.
+  A SID the cloud had stopped accepting came back as a non-success status, so
+  the call failed until some later poll happened to refresh the token; one
+  renewal plus one replay heals the call instead. The renewal is skipped when
+  the token cannot be validated again — the vendor's lockout protection refuses
+  a second `VALIDATE_TOKEN` within five minutes — and the original answer is
+  returned rather than replaced by a renewal error.
+
 ## 1.2.10
 
 - Fix: `get_measurement_temperature(field)` left an encoded negative reading

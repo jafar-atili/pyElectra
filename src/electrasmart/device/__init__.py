@@ -157,6 +157,59 @@ class ElectraAirConditioner:
     def get_shabat_mode(self) -> bool:
         return self._oper_data["SHABAT"] == OperationMode.ON
 
+    def _is_flag_enabled(self, field: str) -> bool | None:
+        """Read an on/off ``OPER`` field, or ``None`` when the unit omits it."""
+        value = self._oper_data.get(field)
+        if value is None:
+            return None
+
+        return value == OperationMode.ON
+
+    def _set_flag(self, field: str, enable: bool) -> None:
+        """Write an on/off ``OPER`` field, ignoring a unit without the field."""
+        if field in self._oper_data:
+            self._oper_data[field] = OperationMode.ON if enable else OperationMode.OFF
+
+    def set_ifeel_mode(self, enable: bool) -> None:
+        """Turn iFeel on or off.
+
+        iFeel follows the temperature measured by the remote instead of the
+        one the unit measures; the flag rides in the same ``OPER`` map as the
+        other modes. A unit that does not report ``IFEEL`` is left alone.
+        """
+        self._set_flag("IFEEL", enable)
+
+    def get_ifeel_mode(self) -> bool | None:
+        """Return whether iFeel is on, or ``None`` for a unit without it."""
+        return self._is_flag_enabled("IFEEL")
+
+    def set_sleep_mode(self, enable: bool) -> None:
+        """Turn the sleep mode on or off.
+
+        Sleep mode lets the unit ramp the temperature down (or up, when
+        heating) while the room is asleep. A unit that does not report
+        ``SLEEP`` is left alone.
+        """
+        self._set_flag("SLEEP", enable)
+
+    def get_sleep_mode(self) -> bool | None:
+        """Return whether the sleep mode is on, or ``None`` without the field."""
+        return self._is_flag_enabled("SLEEP")
+
+    def set_timer_mode(self, enable: bool) -> None:
+        """Turn the unit's server-side timer on or off.
+
+        The timer is configured in the Electra app and lives on the vendor's
+        side; the cloud reports it as this single on/off flag and exposes
+        nothing about when it fires or what it does. A unit that does not
+        report ``TIMER`` is left alone.
+        """
+        self._set_flag("TIMER", enable)
+
+    def get_timer_mode(self) -> bool | None:
+        """Return whether a server-side timer is set, or ``None`` without it."""
+        return self._is_flag_enabled("TIMER")
+
     def get_filter_clean_required(self) -> bool | None:
         """Return whether the unit is asking for the filter to be cleaned.
 
@@ -165,11 +218,7 @@ class ElectraAirConditioner:
         can leave its entity out instead of reporting a reminder that the unit
         never sent.
         """
-        value = self._oper_data.get("CLEAR_FILT")
-        if value is None:
-            return None
-
-        return value == OperationMode.ON
+        return self._is_flag_enabled("CLEAR_FILT")
 
     def update_operation_states(self, data: dict[str, Any]) -> None:
         command_json = (data or {}).get("commandJson") or {}
