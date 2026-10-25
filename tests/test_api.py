@@ -418,12 +418,14 @@ def test_set_state_replays_a_refused_command(monkeypatch) -> None:
     assert [payload["sid"] for payload in sent] == [None, "renewed-sid"]
 
 
-def _events_answer(events, *, res: int = 0, status: int = 0) -> dict:
+def _events_answer(
+    events, *, res: int = 0, status: int = 0, enabled: object = True
+) -> dict:
     """A ``GET_EVENTS`` answer, with the event list stringified as the cloud does."""
     return {
         "status": status,
         "data": {
-            "enabled": True,
+            "enabled": enabled,
             "events": events if isinstance(events, str) else json.dumps(events),
             "res": res,
         },
@@ -608,3 +610,60 @@ def test_delete_event_raises_when_the_cloud_reports_a_failure(monkeypatch) -> No
 
     with pytest.raises(ElectraApiError, match="Failed to delete the event"):
         asyncio.run(api.delete_event(_device(), "a-timer-id"))
+
+
+def test_get_events_enabled_reads_the_top_level_flag(monkeypatch) -> None:
+    api, sent, _ = _api_answering_each_call(
+        monkeypatch, [_events_answer([], enabled=True)]
+    )
+
+    assert asyncio.run(api.get_events_enabled(_device())) is True
+    assert sent[0]["cmd"] == "GET_EVENTS"
+
+
+def test_get_events_enabled_parses_a_flag_sent_as_a_string(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [_events_answer([], enabled="false")]
+    )
+
+    assert asyncio.run(api.get_events_enabled(_device())) is False
+
+
+def test_get_events_enabled_is_false_when_the_cloud_omits_it(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"events": "null", "res": 0}}]
+    )
+
+    assert asyncio.run(api.get_events_enabled(_device())) is False
+
+
+def test_set_events_enabled_writes_the_enable_key(monkeypatch) -> None:
+    """The request key is ``enable``; every name its answers use is refused."""
+    api, sent, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"res": 0}}]
+    )
+
+    asyncio.run(api.set_events_enabled(_device(), False))
+
+    assert sent[0]["cmd"] == "SET_DEVICE_EVENTS_FLAG"
+    assert sent[0]["data"] == {"deviceId": "1234123456", "enable": False}
+
+
+def test_set_events_enabled_raises_when_the_command_is_refused(monkeypatch) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 0, "data": {"res": 99}}]
+    )
+
+    with pytest.raises(ElectraApiError, match="Failed to set the events flag"):
+        asyncio.run(api.set_events_enabled(_device(), False))
+
+
+def test_set_events_enabled_raises_when_the_cloud_reports_a_failure(
+    monkeypatch,
+) -> None:
+    api, _, _ = _api_answering_each_call(
+        monkeypatch, [{"status": 1, "data": {"res": 0}}]
+    )
+
+    with pytest.raises(ElectraApiError, match="Failed to set the events flag"):
+        asyncio.run(api.set_events_enabled(_device(), False))

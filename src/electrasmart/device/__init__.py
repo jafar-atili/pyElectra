@@ -206,17 +206,23 @@ class ElectraAirConditioner:
         return self._is_flag_enabled("SLEEP")
 
     def set_timer_mode(self, enable: bool) -> None:
-        """Turn the unit's server-side timer on or off.
+        """Turn the unit's timer INDICATION on or off.
 
-        The timer is configured in the Electra app and lives on the vendor's
-        side; the cloud reports it as this single on/off flag and exposes
-        nothing about when it fires or what it does. A unit that does not
-        report ``TIMER`` is left alone.
+        ``OPER.TIMER`` is not the account's timers. Enabling or disabling a
+        server-side event - and the per-device events flag - leaves this field
+        untouched, verified live; writing it is accepted and holds, moving no
+        other field. The scheduled timers are the events, which
+        ``ElectraAPI.get_events`` reads. A unit that does not report ``TIMER`` is
+        left alone.
         """
         self._set_flag("TIMER", enable)
 
     def get_timer_mode(self) -> bool | None:
-        """Return whether a server-side timer is set, or ``None`` without it."""
+        """Return the unit's timer indication, or ``None`` without the field.
+
+        This is ``OPER.TIMER``, which the account's timers do not drive - see
+        ``set_timer_mode``. Reading it as whether a timer is set is wrong.
+        """
         return self._is_flag_enabled("TIMER")
 
     def get_filter_clean_required(self) -> bool | None:

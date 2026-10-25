@@ -16,6 +16,15 @@
 - New: `event.WEEKDAYS` / `weekdays_to_mask()` / `mask_to_weekdays()` for the
   `days` mask, whose bit 0 is Sunday through bit 6 Saturday and `127` every day,
   plus `validate_time()` for the `HH:MM` form the cloud expects.
+- New: `get_events_enabled(device)` and `set_events_enabled(device, enable)` for
+  the per-device switch that turns every timer off at once, which the Electra app
+  offers next to the individual ones. Its request key is `enable` while its two
+  answers call the same flag `enabled` and `enableEvents`.
+- Fixed: `get_timer_mode()` and `set_timer_mode()` documented `OPER.TIMER` as the
+  server-side timer. It is not: enabling or disabling an event, or the per-device
+  events flag, leaves that field untouched (verified against the live cloud),
+  while writing it is accepted, holds, and moves no other field. It is a
+  unit-side indication with no schedule behind it, and the docstrings now say so.
 
 ## 1.2.11
 
