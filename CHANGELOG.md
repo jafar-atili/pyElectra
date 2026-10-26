@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.2.12
+
+- New: the server-side timers are readable and writable. `OPER.TIMER` only says
+  that one is set; the schedule itself lives in the account's events, and this
+  release exposes them: `get_events(device)` returns `ElectraEvent` objects,
+  `create_event(device, event)` adds one, `update_event(device, event)` writes a
+  changed one back and `delete_event(device, event_id)` removes one. An event is
+  a local `HH:MM` time, a weekday mask, an enabled flag and a partial `OPER` map
+  (`actions`) applied when it fires.
+  `GET_EVENTS` needs the device id in its data - without it the cloud answers
+  `res: 99` with a null event list, which looks exactly like an account with no
+  timers. `SET_EVENT` wants the event under an `event` key, and takes an omitted
+  `eventId` as "create this" while a supplied one means "update this".
+- New: `event.WEEKDAYS` / `weekdays_to_mask()` / `mask_to_weekdays()` for the
+  `days` mask, whose bit 0 is Sunday through bit 6 Saturday and `127` every day,
+  plus `validate_time()` for the `HH:MM` form the cloud expects.
+- New: `get_events_enabled(device)` and `set_events_enabled(device, enable)` for
+  the per-device switch that turns every timer off at once, which the Electra app
+  offers next to the individual ones. Its request key is `enable` while its two
+  answers call the same flag `enabled` and `enableEvents`.
+- Fixed: `get_timer_mode()` and `set_timer_mode()` documented `OPER.TIMER` as the
+  server-side timer. It is not: enabling or disabling an event, or the per-device
+  events flag, leaves that field untouched (verified against the live cloud),
+  while writing it is accepted, holds, and moves no other field. It is a
+  unit-side indication with no schedule behind it, and the docstrings now say so.
+
 ## 1.2.11
 
 - New: `set_ifeel_mode()` / `get_ifeel_mode()`, `set_sleep_mode()` /

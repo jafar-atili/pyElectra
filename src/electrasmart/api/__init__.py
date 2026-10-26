@@ -3,13 +3,14 @@ from __future__ import annotations
 import builtins
 from asyncio import TaskGroup
 from datetime import UTC, datetime
-from json import JSONDecodeError
+from json import JSONDecodeError, loads
 from logging import getLogger
 from typing import Any
 
 from aiohttp import ClientError, ClientSession
 
 from electrasmart.device import ElectraAirConditioner
+from electrasmart.event import ElectraEvent, validate_time
 
 from .const import (
     DELAY_BETWEEM_SID_REQUESTS,
@@ -278,3 +279,169 @@ class ElectraAPI:
         }
 
         return await self._send_request_with_sid(payload)
+
+    async def get_events(self, device: ElectraAirConditioner) -> list[ElectraEvent]:
+        """Return the device's server-side timers.
+
+        The cloud answers ``res: 99`` with a null event list when the request
+        carries no device id, so that parameter is what makes this readable at
+        all - a call without it looks exactly like an account with no timers.
+        """
+        data = await self._get_events_data(device)
+
+        events = data.get("events")
+        if isinstance(events, str):
+            events = loads(events)
+
+        return [ElectraEvent.from_api(event) for event in (events or [])]
+
+    async def get_events_enabled(self, device: ElectraAirConditioner) -> bool:
+        """Return whether the device's timers are enabled as a whole.
+
+        This is the per-device switch in the Electra app: with it off, no event
+        fires however each one is set. The cloud reports the same flag twice, as
+        ``enabled`` in the ``GET_EVENTS`` answer and as ``enableEvents`` on the
+        device record.
+        """
+        enabled = (await self._get_events_data(device)).get("enabled")
+        if isinstance(enabled, str):
+            return enabled.strip().lower() in ("true", "1", "on")
+        return bool(enabled)
+
+    async def set_events_enabled(
+        self, device: ElectraAirConditioner, enable: bool
+    ) -> None:
+        """Enable or disable every timer on a device at once.
+
+        The one command here whose request key differs from every name its
+        answers use: it is written as ``enable``. Every other candidate key is
+        refused outright, so a wrong one cannot land silently.
+        """
+        payload = {
+            "pvdid": 1,
+            "id": 99,
+            "cmd": "SET_DEVICE_EVENTS_FLAG",
+            "data": {"deviceId": device.id, "enable": enable},
+        }
+
+        resp = await self._send_request_with_sid(payload)
+        data = resp.get(Attributes.DATA) or {}
+        if resp.get(Attributes.STATUS) != STATUS_SUCCESS or (
+            data.get(Attributes.RES) != STATUS_SUCCESS
+        ):
+            raise ElectraApiError(
+                f"Failed to set the events flag of {device.name}: {resp}"
+            )
+
+    async def create_event(
+        self,
+        device: ElectraAirConditioner,
+        event: ElectraEvent,
+    ) -> ElectraEvent:
+        """Add a timer and return it as the cloud stored it.
+
+        The id is left out of the request on purpose: the cloud generates one,
+        and an id of our own is rejected. The new event is then read back,
+        because nothing else reports its id.
+        """
+        validate_time(event.time)
+        known = {existing.event_id for existing in await self.get_events(device)}
+        await self._set_event(device, event, include_id=False)
+
+        created = [
+            existing
+            for existing in await self.get_events(device)
+            if existing.event_id not in known
+        ]
+        if len(created) != 1:
+            raise ElectraApiError(
+                f"Failed to create the event for {device.name}: the cloud "
+                f"answered with {len(created)} new events"
+            )
+
+        return created[0]
+
+    async def update_event(
+        self,
+        device: ElectraAirConditioner,
+        event: ElectraEvent,
+    ) -> None:
+        """Write a changed timer back, e.g. to enable it or move its time."""
+        validate_time(event.time)
+        await self._set_event(device, event, include_id=True)
+
+    async def delete_event(
+        self,
+        device: ElectraAirConditioner,
+        event_id: str,
+    ) -> None:
+        """Remove a timer by its event id."""
+        payload = {
+            "pvdid": 1,
+            "id": 99,
+            "cmd": "DELETE_EVENT",
+            "data": {"deviceId": device.id, "eventId": event_id},
+        }
+
+        resp = await self._send_request_with_sid(payload)
+        data = resp.get(Attributes.DATA) or {}
+        if resp.get(Attributes.STATUS) != STATUS_SUCCESS or (
+            data.get(Attributes.RES) != STATUS_SUCCESS
+        ):
+            raise ElectraApiError(f"Failed to delete the event {event_id}: {resp}")
+
+    async def _get_events_data(self, device: ElectraAirConditioner) -> dict[str, Any]:
+        """Fetch the ``GET_EVENTS`` answer, refusing either kind of failure.
+
+        Both failures matter: a non-zero status is an error, while ``res: 99``
+        is the answer to a request the cloud could not use at all.
+        """
+        payload = {
+            "pvdid": 1,
+            "id": 99,
+            "cmd": "GET_EVENTS",
+            "data": {"deviceId": device.id},
+        }
+
+        resp = await self._send_request_with_sid(payload)
+        if resp.get(Attributes.STATUS) != STATUS_SUCCESS:
+            raise ElectraApiError(f"Failed to get the events of {device.name}: {resp}")
+
+        data = resp.get(Attributes.DATA) or {}
+        if data.get(Attributes.RES) != STATUS_SUCCESS:
+            raise ElectraApiError(
+                f"Failed to get the events of {device.name}: the cloud answered "
+                f"res {data.get(Attributes.RES)!r}"
+            )
+
+        return data
+
+    async def _set_event(
+        self,
+        device: ElectraAirConditioner,
+        event: ElectraEvent,
+        include_id: bool,
+    ) -> None:
+        """Create or update one event: the single call the cloud offers for both.
+
+        The event has to sit under an ``event`` key; the fields on their own, or
+        under any other wrapper, are answered with ``res: 99``.
+        """
+        payload = {
+            "pvdid": 1,
+            "id": 99,
+            "cmd": "SET_EVENT",
+            "data": {
+                "deviceId": device.id,
+                "event": event.to_api(include_id=include_id),
+            },
+        }
+
+        resp = await self._send_request_with_sid(payload)
+        data = resp.get(Attributes.DATA) or {}
+        if resp.get(Attributes.STATUS) != STATUS_SUCCESS or (
+            data.get(Attributes.RES) != STATUS_SUCCESS
+        ):
+            raise ElectraApiError(
+                f"Failed to save the event {event.event_id!r}: {resp}"
+            )
