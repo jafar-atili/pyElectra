@@ -1,6 +1,8 @@
 """The server-side timers, which this API models as events.
 
-A timer is not an ``OPER`` field: ``OPER.TIMER`` only reports THAT one is set.
+A timer is not an ``OPER`` field: ``OPER.TIMER`` is the app's own note that one
+is armed, and only the app writes it - the same change made over this API leaves
+it untouched.
 The schedule itself lives in the account's events, each of which is a partial
 ``OPER`` map applied at a local ``HH:MM`` time on the weekdays its mask selects.
 """

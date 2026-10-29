@@ -208,20 +208,26 @@ class ElectraAirConditioner:
     def set_timer_mode(self, enable: bool) -> None:
         """Turn the unit's timer INDICATION on or off.
 
-        ``OPER.TIMER`` is not the account's timers. Enabling or disabling a
-        server-side event - and the per-device events flag - leaves this field
-        untouched, verified live; writing it is accepted and holds, moving no
-        other field. The scheduled timers are the events, which
-        ``ElectraAPI.get_events`` reads. A unit that does not report ``TIMER`` is
-        left alone.
+        ``OPER.TIMER`` is not the account's timers. It is the app's own "at
+        least one timer is armed" note, which the app writes itself: measured
+        live, every timer the app enabled or disabled moved this field and
+        nothing else, while enabling or disabling the same event - and the
+        per-device events flag - over this API left it untouched. Writing it
+        directly is accepted and holds, moving no other field; nothing on the
+        server keeps it truthful, so it follows the app and goes stale for a
+        client that changes timers over the API. The scheduled timers are the
+        events, which ``ElectraAPI.get_events`` reads. A unit that does not
+        report ``TIMER`` is left alone.
         """
         self._set_flag("TIMER", enable)
 
     def get_timer_mode(self) -> bool | None:
         """Return the unit's timer indication, or ``None`` without the field.
 
-        This is ``OPER.TIMER``, which the account's timers do not drive - see
-        ``set_timer_mode``. Reading it as whether a timer is set is wrong.
+        This is ``OPER.TIMER``, which the account's timers do not drive over this
+        API - see ``set_timer_mode``. It is the app's own note that a timer is
+        armed, so read it that way only when the app is what set the timers: a
+        client that changes timers here does not move it.
         """
         return self._is_flag_enabled("TIMER")
 
