@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.13
+
+- Fixed: the docstrings of `get_timer_mode()` / `set_timer_mode()` and the
+  `event` module described `OPER.TIMER` as a unit-side indication that nothing
+  drives. The app drives it: every timer enabled or disabled in the app's own UI
+  moved that field and no other one, measured live, while the same change made
+  over this API left it untouched. It is the app's "at least one timer is armed"
+  note, and it goes stale for a client that changes timers over the API.
+  Documentation only - no API change.
+
 ## 1.2.12
 
 - New: the server-side timers are readable and writable. `OPER.TIMER` only says
