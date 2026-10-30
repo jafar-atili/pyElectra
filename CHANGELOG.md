@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.2.14
+
+- New: `get_measurement_fault(field)` decodes the `DIAG_L2` sensor-health flags,
+  and `get_indoor_coil_sensor_fault()` / `get_return_air_sensor_fault()` name the
+  two of them this library can decode (`I_BAD_ICT` and `I_BAD_RAT`). The healthy
+  value of these flags is not identical across models - `NORM` on one unit,
+  `NORMAL` for `O_RLT_BAD` / `O_RGT_BAD` on another - so the comparison belongs
+  here instead of in each caller. Both return `None` when the unit does not
+  report the field, and `get_measurement_fault()` also returns `None` for a flag
+  it has no observed sentinel for: `O_PROT_STAT` / `O_PROT_RESON` read `0` when
+  healthy on some units, so a `NORM`-prefix test would report a permanent fault
+  on those.
+
 ## 1.2.13
 
 - Fixed: the docstrings of `get_timer_mode()` / `set_timer_mode()` and the

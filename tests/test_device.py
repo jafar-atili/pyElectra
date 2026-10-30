@@ -388,3 +388,52 @@ def test_filter_clean_required_follows_the_reminder_flag() -> None:
 def test_filter_clean_required_is_none_without_the_field() -> None:
     """A unit that does not report the reminder says so instead of raising."""
     assert _running().get_filter_clean_required() is None
+
+
+def test_measurement_fault_follows_the_health_sentinel() -> None:
+    """The healthy value of these flags is not identical across models."""
+    for healthy in ("NORM", "NORMAL", "norm"):
+        assert (
+            _ac({"AC_MODE": "COOL"}, {"I_BAD_ICT": healthy}).get_measurement_fault(
+                "I_BAD_ICT"
+            )
+            is False
+        )
+
+    assert (
+        _ac({"AC_MODE": "COOL"}, {"I_BAD_ICT": "BAD"}).get_measurement_fault(
+            "I_BAD_ICT"
+        )
+        is True
+    )
+
+
+def test_measurement_fault_is_none_without_the_field() -> None:
+    """A unit that stops reporting the flag leaves it unknown, not healthy."""
+    assert _running().get_measurement_fault("I_BAD_ICT") is None
+
+
+def test_measurement_fault_is_none_for_a_flag_with_no_known_sentinel() -> None:
+    """A flag whose healthy value is unknown must not be decoded.
+
+    ``O_PROT_STAT`` reads ``0`` when healthy on some units, so a
+    ``NORM``-prefix test would report a permanent fault on those.
+    """
+    ac = _ac({"AC_MODE": "COOL"}, {"O_PROT_STAT": "0"})
+
+    assert ac.get_measurement_fault("O_PROT_STAT") is None
+
+
+def test_sensor_fault_accessors_read_their_own_field() -> None:
+    ac = _ac({"AC_MODE": "COOL"}, {"I_BAD_ICT": "NORM", "I_BAD_RAT": "0"})
+
+    assert ac.get_indoor_coil_sensor_fault() is False
+    assert ac.get_return_air_sensor_fault() is True
+
+
+def test_sensor_fault_accessors_are_none_without_the_fields() -> None:
+    """Both accessors stay unknown for a unit that reports neither flag."""
+    ac = _running()
+
+    assert ac.get_indoor_coil_sensor_fault() is None
+    assert ac.get_return_air_sensor_fault() is None

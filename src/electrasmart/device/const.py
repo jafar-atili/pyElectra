@@ -35,3 +35,17 @@ MODE_VALUES = (
 class Feature:
     V_SWING = 0
     H_SWING = 1
+
+
+# The ``DIAG_L2`` fields that carry a sensor-health sentinel, with the value a
+# healthy unit reports for each. The sentinel is NOT identical across models:
+# ``NORM`` on one unit, ``NORMAL`` for ``O_RLT_BAD`` / ``O_RGT_BAD`` on another,
+# ``0`` for ``O_PROT_STAT`` / ``O_PROT_RESON`` on a third. So only the flags
+# whose healthy value has actually been observed are listed - a flag absent from
+# this map has no decoding that would not be a guess about the hardware.
+INDOOR_COIL_SENSOR_FLAG = "I_BAD_ICT"
+RETURN_AIR_SENSOR_FLAG = "I_BAD_RAT"
+MEASUREMENT_HEALTHY_VALUES: dict[str, str] = {
+    INDOOR_COIL_SENSOR_FLAG: "NORM",
+    RETURN_AIR_SENSOR_FLAG: "NORM",
+}

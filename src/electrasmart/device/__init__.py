@@ -4,7 +4,14 @@ import json
 from logging import getLogger
 from typing import Any
 
-from .const import MODE_VALUES, Feature, OperationMode
+from .const import (
+    INDOOR_COIL_SENSOR_FLAG,
+    MEASUREMENT_HEALTHY_VALUES,
+    MODE_VALUES,
+    RETURN_AIR_SENSOR_FLAG,
+    Feature,
+    OperationMode,
+)
 
 logger = getLogger(__name__)
 
@@ -287,6 +294,37 @@ class ElectraAirConditioner:
             return None
 
         return raw_temp >> 8 if abs(raw_temp) > 100 else raw_temp
+
+    def get_measurement_fault(self, field: str) -> bool | None:
+        """Return whether a diagnostic health flag reports a fault.
+
+        ``DIAG_L2`` carries the unit's sensor-health flags, and the value a
+        healthy unit reports is not identical across models (``NORM`` and
+        ``NORMAL`` are both in the wild), so the comparison lives here instead
+        of in every caller. ``None`` means the unit does not report the field
+        or that the field is not one of the flags this library can decode -
+        neither of which a caller may read as healthy.
+        """
+        healthy = MEASUREMENT_HEALTHY_VALUES.get(field)
+        value = self.measurements.get(field)
+        if healthy is None or value is None:
+            return None
+
+        return not str(value).upper().startswith(healthy)
+
+    def get_indoor_coil_sensor_fault(self) -> bool | None:
+        """Return whether the indoor coil sensor reports a fault.
+
+        This is ``I_BAD_ICT``; ``None`` when the unit does not report it.
+        """
+        return self.get_measurement_fault(INDOOR_COIL_SENSOR_FLAG)
+
+    def get_return_air_sensor_fault(self) -> bool | None:
+        """Return whether the return air sensor reports a fault.
+
+        This is ``I_BAD_RAT``; ``None`` when the unit does not report it.
+        """
+        return self.get_measurement_fault(RETURN_AIR_SENSOR_FLAG)
 
     def get_operation_state(self) -> str:
         if "AC_STSRC" in self._oper_data:
